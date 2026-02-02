@@ -3,8 +3,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
 import { put } from '@vercel/blob';
 
-const sql = neon(process.env.DATABASE_URL!);
-
 async function removeBackgroundWithRemoveBg(imageBuffer: ArrayBuffer): Promise<ArrayBuffer> {
   const formData = new FormData();
   formData.append('image_file', new Blob([imageBuffer]), 'image.jpg');
@@ -51,6 +49,7 @@ export async function POST(request: NextRequest) {
     ]);
 
     // Save to Neon database
+    const sql = neon(process.env.DATABASE_URL!);
     const result = await sql`
       INSERT INTO food_memories (
         original_image_url,
