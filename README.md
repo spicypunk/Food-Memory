@@ -7,7 +7,7 @@ Map your food adventures around the world. Upload a food photo, automatically re
 ## Features
 
 - **EXIF GPS extraction** - Automatically reads location data from your photos
-- **AI background removal** - Uses Replicate's rembg to create clean food icons
+- **AI background removal** - Uses Remove.bg API for fast, high-quality results
 - **Interactive map** - Beautiful dark-themed Leaflet map with custom markers
 - **Mobile-first** - Works great on iPhone/Android for on-the-go uploads
 
@@ -15,7 +15,7 @@ Map your food adventures around the world. Upload a food photo, automatically re
 
 - **Frontend**: Next.js 14 (App Router)
 - **Map**: Leaflet + react-leaflet
-- **Background Removal**: [@imgly/background-removal](https://github.com/imgly/background-removal-js) (runs client-side via WebAssembly)
+- **Background Removal**: [Remove.bg API](https://www.remove.bg/api) (fast server-side processing)
 - **Database**: Neon PostgreSQL (serverless)
 - **File Storage**: Vercel Blob
 - **Deployment**: Vercel
@@ -62,6 +62,7 @@ cp .env.example .env.local
 
 Fill in your values:
 - `DATABASE_URL` - Neon connection string
+- `REMOVE_BG_API_KEY` - Get from [remove.bg/api](https://www.remove.bg/api)
 
 ### 4. Deploy to Vercel
 
@@ -104,9 +105,9 @@ All services have generous free tiers:
 | Neon | 500MB storage | $0.25/GB |
 | Vercel Blob | 1GB storage | $0.03/GB |
 | Vercel Hosting | 100GB bandwidth | $0.15/GB |
-| Background Removal | Unlimited (client-side) | $0 |
+| Remove.bg | 50 images/month | ~$0.20/image |
 
-For personal use, you'll likely stay within free tiers. Background removal runs entirely in your browser using WebAssembly, so there's no API cost.
+For personal use, you'll likely stay within free tiers.
 
 ## Future Ideas
 
