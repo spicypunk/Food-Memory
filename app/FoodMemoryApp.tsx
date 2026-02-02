@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import exifr from 'exifr';
 import 'leaflet/dist/leaflet.css';
@@ -57,6 +57,16 @@ function MapController({ center, zoom }: { center: [number, number] | null; zoom
       map.flyTo(center, zoom || 14, { duration: 1.5 });
     }
   }, [center, zoom, map]);
+  return null;
+}
+
+// Map click handler to dismiss selected memory
+function MapClickHandler({ onMapClick }: { onMapClick: () => void }) {
+  useMapEvents({
+    click: () => {
+      onMapClick();
+    },
+  });
   return null;
 }
 
@@ -186,47 +196,49 @@ export default function FoodMemoryApp() {
 
       </header>
 
-      {/* Floating Add Button */}
-      <label style={{
-        position: 'fixed',
-        bottom: '24px',
-        right: '24px',
-        zIndex: 1000,
-        width: '56px',
-        height: '56px',
-        borderRadius: '50%',
-        background: uploading ? '#666' : '#000',
-        border: '2px solid #fff',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        cursor: uploading ? 'wait' : 'pointer',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-        transition: 'all 0.2s ease',
-      }}>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleFileSelect}
-          disabled={uploading}
-          style={{ display: 'none' }}
-        />
-        {uploading ? (
-          <div style={{
-            width: '24px',
-            height: '24px',
-            border: '2px solid rgba(255,255,255,0.3)',
-            borderTopColor: '#fff',
-            borderRadius: '50%',
-            animation: 'spin 0.8s linear infinite',
-          }} />
-        ) : (
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5">
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-        )}
-      </label>
+      {/* Floating Add Button - hidden when memory detail sheet is open */}
+      {!selectedMemory && (
+        <label style={{
+          position: 'fixed',
+          bottom: '24px',
+          right: '24px',
+          zIndex: 1000,
+          width: '56px',
+          height: '56px',
+          borderRadius: '50%',
+          background: uploading ? '#666' : '#000',
+          border: '2px solid #fff',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: uploading ? 'wait' : 'pointer',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+          transition: 'all 0.2s ease',
+        }}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFileSelect}
+            disabled={uploading}
+            style={{ display: 'none' }}
+          />
+          {uploading ? (
+            <div style={{
+              width: '24px',
+              height: '24px',
+              border: '2px solid rgba(255,255,255,0.3)',
+              borderTopColor: '#fff',
+              borderRadius: '50%',
+              animation: 'spin 0.8s linear infinite',
+            }} />
+          ) : (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+          )}
+        </label>
+      )}
 
       {/* Error toast */}
       {error && (
@@ -283,6 +295,7 @@ export default function FoodMemoryApp() {
             attribution='&copy; <a href="https://carto.com/">CARTO</a>'
           />
           <MapController center={mapCenter} zoom={14} />
+          <MapClickHandler onMapClick={() => setSelectedMemory(null)} />
           
           {foodMemories.map((memory) => (
             <Marker
@@ -290,7 +303,10 @@ export default function FoodMemoryApp() {
               position={[memory.latitude, memory.longitude]}
               icon={createFoodIcon(memory.cropped_image_url)}
               eventHandlers={{
-                click: () => setSelectedMemory(memory),
+                click: () => {
+                  // Toggle: dismiss if same memory is selected, otherwise select this one
+                  setSelectedMemory(prev => prev?.id === memory.id ? null : memory);
+                },
               }}
             >
               <Popup>
@@ -354,27 +370,8 @@ export default function FoodMemoryApp() {
           backdropFilter: 'blur(20px)',
           borderRadius: '24px 24px 0 0',
           padding: '20px',
-          paddingRight: '100px',
           animation: 'slideUp 0.3s ease',
         }}>
-          <button
-            onClick={() => setSelectedMemory(null)}
-            style={{
-              position: 'absolute',
-              top: '12px',
-              right: '16px',
-              background: 'rgba(255,255,255,0.1)',
-              border: 'none',
-              borderRadius: '50%',
-              width: '32px',
-              height: '32px',
-              color: '#fff',
-              cursor: 'pointer',
-              fontSize: '16px',
-            }}
-          >
-            ✕
-          </button>
           <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
             <img
               src={selectedMemory.cropped_image_url}
