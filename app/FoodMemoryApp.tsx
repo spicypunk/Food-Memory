@@ -406,7 +406,7 @@ export default function FoodMemoryApp() {
                 color: 'rgba(255,255,255,0.5)',
                 fontSize: '13px',
               }}>
-                📍 {selectedMemory.latitude.toFixed(4)}, {selectedMemory.longitude.toFixed(4)}
+                📍 {Number(selectedMemory.latitude).toFixed(4)}, {Number(selectedMemory.longitude).toFixed(4)}
               </p>
             </div>
           </div>
