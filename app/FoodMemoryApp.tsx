@@ -4,7 +4,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import exifr from 'exifr';
-import { removeBackground } from '@imgly/background-removal';
 import 'leaflet/dist/leaflet.css';
 
 // Fix for default marker icons in Next.js
@@ -105,22 +104,10 @@ export default function FoodMemoryApp() {
         throw new Error('No location data found in this photo. Make sure location services were enabled when you took it.');
       }
 
-      // Step 2: Remove background client-side
-      setUploadStatus('Removing background...');
-      const blob = await removeBackground(file, {
-        progress: (key, current, total) => {
-          if (key === 'compute:inference') {
-            const pct = Math.round((current / total) * 100);
-            setUploadStatus(`Processing... ${pct}%`);
-          }
-        },
-      });
-
-      // Step 3: Upload both images to server
-      setUploadStatus('Saving...');
+      // Step 2: Upload to server (background removal happens server-side)
+      setUploadStatus('Processing...');
       const formData = new FormData();
       formData.append('original', file);
-      formData.append('cropped', blob, 'cropped.png');
       formData.append('latitude', gps.latitude.toString());
       formData.append('longitude', gps.longitude.toString());
 
