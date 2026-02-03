@@ -95,16 +95,28 @@ function FoodMarker({
     }
   }, [isSelected]);
 
+  // Attach click handler directly to the marker's DOM element
+  useEffect(() => {
+    if (markerRef.current) {
+      const el = markerRef.current.getElement();
+      if (el) {
+        const handleClick = (e: Event) => {
+          e.stopPropagation();
+          onSelect();
+        };
+        el.addEventListener('click', handleClick);
+        return () => el.removeEventListener('click', handleClick);
+      }
+    }
+  }, [onSelect]);
+
   return (
     <Marker
       ref={markerRef}
       position={[memory.latitude, memory.longitude]}
       icon={createFoodIcon(memory.cropped_image_url)}
-      eventHandlers={{
-        click: onSelect,
-      }}
     >
-      <Popup closeButton={false} closeOnClick={false}>
+      <Popup closeButton={false} closeOnClick={false} autoClose={false}>
         <div style={{ textAlign: 'center', minWidth: '150px' }}>
           <img
             src={memory.cropped_image_url}
@@ -380,11 +392,14 @@ export default function FoodMemoryApp() {
           />
           <MapController center={mapCenter} zoom={14} />
           <MapClickHandler onMapClick={() => {
-            if (markerClickedRef.current) {
-              markerClickedRef.current = false;
-              return;
-            }
-            setSelectedMemory(null);
+            // Use setTimeout to let marker click handler run first
+            setTimeout(() => {
+              if (markerClickedRef.current) {
+                markerClickedRef.current = false;
+                return;
+              }
+              setSelectedMemory(null);
+            }, 0);
           }} />
           
           {foodMemories.map((memory) => (
