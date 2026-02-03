@@ -21,6 +21,9 @@ interface FoodMemory {
   latitude: number;
   longitude: number;
   created_at: string;
+  dish_name: string | null;
+  restaurant_name: string | null;
+  photo_taken_at: string | null;
 }
 
 // Custom food icon for Leaflet markers
@@ -108,8 +111,11 @@ export default function FoodMemoryApp() {
     setUploadStatus('Reading location...');
 
     try {
-      // Step 1: Extract EXIF GPS data
-      const gps = await exifr.gps(file);
+      // Step 1: Extract EXIF GPS data and date
+      const [gps, exifData] = await Promise.all([
+        exifr.gps(file),
+        exifr.parse(file, { pick: ['DateTimeOriginal'] }),
+      ]);
       if (!gps?.latitude || !gps?.longitude) {
         throw new Error('No location data found in this photo. Make sure location services were enabled when you took it.');
       }
@@ -118,8 +124,13 @@ export default function FoodMemoryApp() {
       setUploadStatus('Processing...');
       const formData = new FormData();
       formData.append('original', file);
-      formData.append('latitude', gps.latitude.toString());
-      formData.append('longitude', gps.longitude.toString());
+      formData.append('latitude', Number(gps.latitude).toString());
+      formData.append('longitude', Number(gps.longitude).toString());
+
+      // Add photo taken date if available
+      if (exifData?.DateTimeOriginal) {
+        formData.append('photoTakenAt', exifData.DateTimeOriginal.toISOString());
+      }
 
       const res = await fetch('/api/upload', {
         method: 'POST',
@@ -322,12 +333,22 @@ export default function FoodMemoryApp() {
                       background: '#f5f5f5',
                     }}
                   />
+                  {memory.dish_name && (
+                    <p style={{
+                      margin: '8px 0 0',
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      color: '#333',
+                    }}>
+                      {memory.dish_name}
+                    </p>
+                  )}
                   <p style={{
-                    margin: '8px 0 0',
+                    margin: '4px 0 0',
                     fontSize: '12px',
                     color: '#666',
                   }}>
-                    {new Date(memory.created_at).toLocaleDateString('en-US', {
+                    {new Date(memory.photo_taken_at || memory.created_at).toLocaleDateString('en-US', {
                       month: 'short',
                       day: 'numeric',
                       year: 'numeric',
@@ -385,13 +406,31 @@ export default function FoodMemoryApp() {
               }}
             />
             <div>
+              {selectedMemory.dish_name && (
+                <p style={{
+                  margin: 0,
+                  color: '#fff',
+                  fontSize: '18px',
+                  fontWeight: 700,
+                }}>
+                  {selectedMemory.dish_name}
+                </p>
+              )}
+              {selectedMemory.restaurant_name && (
+                <p style={{
+                  margin: '2px 0 0',
+                  color: 'rgba(255,255,255,0.7)',
+                  fontSize: '14px',
+                }}>
+                  {selectedMemory.restaurant_name}
+                </p>
+              )}
               <p style={{
-                margin: 0,
-                color: '#fff',
-                fontSize: '16px',
-                fontWeight: 600,
+                margin: '4px 0 0',
+                color: 'rgba(255,255,255,0.5)',
+                fontSize: '13px',
               }}>
-                {new Date(selectedMemory.created_at).toLocaleDateString('en-US', {
+                {new Date(selectedMemory.photo_taken_at || selectedMemory.created_at).toLocaleDateString('en-US', {
                   weekday: 'long',
                   month: 'long',
                   day: 'numeric',
@@ -400,8 +439,8 @@ export default function FoodMemoryApp() {
               </p>
               <p style={{
                 margin: '4px 0 0',
-                color: 'rgba(255,255,255,0.5)',
-                fontSize: '13px',
+                color: 'rgba(255,255,255,0.4)',
+                fontSize: '12px',
               }}>
                 📍 {Number(selectedMemory.latitude).toFixed(4)}, {Number(selectedMemory.longitude).toFixed(4)}
               </p>

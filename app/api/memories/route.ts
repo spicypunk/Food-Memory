@@ -6,13 +6,16 @@ export async function GET() {
   try {
     const sql = neon(process.env.DATABASE_URL!);
     const memories = await sql`
-      SELECT 
+      SELECT
         id,
         original_image_url,
         cropped_image_url,
         latitude,
         longitude,
-        created_at
+        created_at,
+        dish_name,
+        restaurant_name,
+        photo_taken_at
       FROM food_memories
       ORDER BY created_at DESC
       LIMIT 100
