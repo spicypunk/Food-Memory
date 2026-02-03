@@ -416,15 +416,6 @@ export default function FoodMemoryApp() {
                   {selectedMemory.dish_name}
                 </p>
               )}
-              {selectedMemory.restaurant_name && (
-                <p style={{
-                  margin: '2px 0 0',
-                  color: 'rgba(255,255,255,0.7)',
-                  fontSize: '14px',
-                }}>
-                  {selectedMemory.restaurant_name}
-                </p>
-              )}
               <p style={{
                 margin: '4px 0 0',
                 color: 'rgba(255,255,255,0.5)',
@@ -437,13 +428,15 @@ export default function FoodMemoryApp() {
                   year: 'numeric',
                 })}
               </p>
-              <p style={{
-                margin: '4px 0 0',
-                color: 'rgba(255,255,255,0.4)',
-                fontSize: '12px',
-              }}>
-                📍 {Number(selectedMemory.latitude).toFixed(4)}, {Number(selectedMemory.longitude).toFixed(4)}
-              </p>
+              {selectedMemory.restaurant_name && (
+                <p style={{
+                  margin: '4px 0 0',
+                  color: 'rgba(255,255,255,0.4)',
+                  fontSize: '12px',
+                }}>
+                  📍 {selectedMemory.restaurant_name}
+                </p>
+              )}
             </div>
           </div>
         </div>
