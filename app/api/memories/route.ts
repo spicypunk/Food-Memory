@@ -2,6 +2,9 @@
 import { NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
 
+// Disable caching for this route
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const sql = neon(process.env.DATABASE_URL!);

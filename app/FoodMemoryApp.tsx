@@ -73,6 +73,78 @@ function MapClickHandler({ onMapClick }: { onMapClick: () => void }) {
   return null;
 }
 
+// Food marker with synced popup
+function FoodMarker({
+  memory,
+  isSelected,
+  onSelect
+}: {
+  memory: FoodMemory;
+  isSelected: boolean;
+  onSelect: () => void;
+}) {
+  const markerRef = useRef<L.Marker | null>(null);
+
+  useEffect(() => {
+    if (markerRef.current) {
+      if (isSelected) {
+        markerRef.current.openPopup();
+      } else {
+        markerRef.current.closePopup();
+      }
+    }
+  }, [isSelected]);
+
+  return (
+    <Marker
+      ref={markerRef}
+      position={[memory.latitude, memory.longitude]}
+      icon={createFoodIcon(memory.cropped_image_url)}
+      eventHandlers={{
+        click: onSelect,
+      }}
+    >
+      <Popup closeButton={false} closeOnClick={false}>
+        <div style={{ textAlign: 'center', minWidth: '150px' }}>
+          <img
+            src={memory.cropped_image_url}
+            alt="Food"
+            style={{
+              width: '120px',
+              height: '120px',
+              objectFit: 'contain',
+              borderRadius: '8px',
+              background: '#f5f5f5',
+            }}
+          />
+          {memory.dish_name && (
+            <p style={{
+              margin: '8px 0 0',
+              fontSize: '14px',
+              fontWeight: 600,
+              color: '#333',
+            }}>
+              {memory.dish_name}
+            </p>
+          )}
+          <p style={{
+            margin: '4px 0 0',
+            fontSize: '12px',
+            color: '#666',
+          }}>
+            {new Date(memory.photo_taken_at || memory.created_at).toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            })}
+          </p>
+        </div>
+      </Popup>
+    </Marker>
+  );
+}
+
+
 export default function FoodMemoryApp() {
   const [foodMemories, setFoodMemories] = useState<FoodMemory[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -81,6 +153,7 @@ export default function FoodMemoryApp() {
   const [mapCenter, setMapCenter] = useState<[number, number] | null>(null);
   const [selectedMemory, setSelectedMemory] = useState<FoodMemory | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const markerClickedRef = useRef(false);
 
   // Load existing memories on mount
   useEffect(() => {
@@ -306,57 +379,24 @@ export default function FoodMemoryApp() {
             attribution='&copy; <a href="https://carto.com/">CARTO</a>'
           />
           <MapController center={mapCenter} zoom={14} />
-          <MapClickHandler onMapClick={() => setSelectedMemory(null)} />
+          <MapClickHandler onMapClick={() => {
+            if (markerClickedRef.current) {
+              markerClickedRef.current = false;
+              return;
+            }
+            setSelectedMemory(null);
+          }} />
           
           {foodMemories.map((memory) => (
-            <Marker
+            <FoodMarker
               key={memory.id}
-              position={[memory.latitude, memory.longitude]}
-              icon={createFoodIcon(memory.cropped_image_url)}
-              eventHandlers={{
-                click: () => {
-                  // Toggle: dismiss if same memory is selected, otherwise select this one
-                  setSelectedMemory(prev => prev?.id === memory.id ? null : memory);
-                },
+              memory={memory}
+              isSelected={selectedMemory?.id === memory.id}
+              onSelect={() => {
+                markerClickedRef.current = true;
+                setSelectedMemory(prev => prev?.id === memory.id ? null : memory);
               }}
-            >
-              <Popup>
-                <div style={{ textAlign: 'center', minWidth: '150px' }}>
-                  <img
-                    src={memory.cropped_image_url}
-                    alt="Food"
-                    style={{
-                      width: '120px',
-                      height: '120px',
-                      objectFit: 'contain',
-                      borderRadius: '8px',
-                      background: '#f5f5f5',
-                    }}
-                  />
-                  {memory.dish_name && (
-                    <p style={{
-                      margin: '8px 0 0',
-                      fontSize: '14px',
-                      fontWeight: 600,
-                      color: '#333',
-                    }}>
-                      {memory.dish_name}
-                    </p>
-                  )}
-                  <p style={{
-                    margin: '4px 0 0',
-                    fontSize: '12px',
-                    color: '#666',
-                  }}>
-                    {new Date(memory.photo_taken_at || memory.created_at).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
-                    })}
-                  </p>
-                </div>
-              </Popup>
-            </Marker>
+            />
           ))}
         </MapContainer>
       </div>
