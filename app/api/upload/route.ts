@@ -3,25 +3,40 @@ import { NextRequest, NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
 import { put } from '@vercel/blob';
 
-async function removeBackgroundWithRemoveBg(imageBuffer: ArrayBuffer): Promise<ArrayBuffer> {
-  const formData = new FormData();
-  formData.append('image_file', new Blob([imageBuffer]), 'image.jpg');
-  formData.append('size', 'auto');
+async function removeBackgroundWithRemoveBg(imageBuffer: ArrayBuffer): Promise<ArrayBuffer | null> {
+  const types = ['auto', 'product']; // Try auto first, then product
 
-  const response = await fetch('https://api.remove.bg/v1.0/removebg', {
-    method: 'POST',
-    headers: {
-      'X-Api-Key': process.env.REMOVE_BG_API_KEY!,
-    },
-    body: formData,
-  });
+  for (const type of types) {
+    try {
+      const formData = new FormData();
+      formData.append('image_file', new Blob([imageBuffer]), 'image.jpg');
+      formData.append('size', 'auto');
+      formData.append('type', type);
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Remove.bg API error: ${error}`);
+      const response = await fetch('https://api.remove.bg/v1.0/removebg', {
+        method: 'POST',
+        headers: {
+          'X-Api-Key': process.env.REMOVE_BG_API_KEY!,
+        },
+        body: formData,
+      });
+
+      if (response.ok) {
+        return await response.arrayBuffer();
+      }
+
+      const error = await response.text();
+      console.log(`Remove.bg failed with type=${type}:`, error);
+      // Continue to next type
+    } catch (error) {
+      console.error(`Remove.bg error with type=${type}:`, error);
+      // Continue to next type
+    }
   }
 
-  return await response.arrayBuffer();
+  // All attempts failed, return null to use original image
+  console.log('All background removal attempts failed, using original image');
+  return null;
 }
 
 async function identifyDishAndRestaurant(
@@ -199,7 +214,7 @@ export async function POST(request: NextRequest) {
     const imageArrayBuffer = await original.arrayBuffer();
 
     // Step 1: Get restaurants and start background removal in parallel
-    const [restaurants, croppedArrayBuffer] = await Promise.all([
+    const [restaurants, bgRemovedBuffer] = await Promise.all([
       findNearbyRestaurants(latitude, longitude),
       removeBackgroundWithRemoveBg(imageArrayBuffer),
     ]);
@@ -210,10 +225,14 @@ export async function POST(request: NextRequest) {
       restaurants
     );
 
+    // Use background-removed image if available, otherwise fall back to original
+    const croppedBuffer = bgRemovedBuffer || imageArrayBuffer;
+    const croppedExtension = bgRemovedBuffer ? 'png' : 'jpg';
+
     // Upload both images to Vercel Blob
     const [originalBlob, croppedBlob] = await Promise.all([
       put(`originals/${Date.now()}-${original.name}`, original, { access: 'public' }),
-      put(`cropped/${Date.now()}.png`, Buffer.from(croppedArrayBuffer), { access: 'public' }),
+      put(`cropped/${Date.now()}.${croppedExtension}`, Buffer.from(croppedBuffer), { access: 'public' }),
     ]);
 
     // Save to Neon database
