@@ -139,17 +139,6 @@ function FoodMarker({
               {memory.dish_name}
             </p>
           )}
-          <p style={{
-            margin: '4px 0 0',
-            fontSize: '12px',
-            color: '#666',
-          }}>
-            {new Date(memory.photo_taken_at || memory.created_at).toLocaleDateString('en-US', {
-              month: 'short',
-              day: 'numeric',
-              year: 'numeric',
-            })}
-          </p>
         </div>
       </Popup>
     </Marker>
