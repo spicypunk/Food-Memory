@@ -79,11 +79,13 @@ function MapClickHandler({ onMapClick }: { onMapClick: () => void }) {
 function FoodMarker({
   memory,
   isSelected,
-  onSelect
+  onSelect,
+  onImageClick
 }: {
   memory: FoodMemory;
   isSelected: boolean;
   onSelect: () => void;
+  onImageClick: (imageUrl: string) => void;
 }) {
   const markerRef = useRef<L.Marker | null>(null);
 
@@ -123,12 +125,17 @@ function FoodMarker({
           <img
             src={memory.cropped_image_url}
             alt="Food"
+            onClick={(e) => {
+              e.stopPropagation();
+              onImageClick(memory.original_image_url);
+            }}
             style={{
               width: '120px',
               height: '120px',
               objectFit: 'contain',
               borderRadius: '8px',
               background: '#f5f5f5',
+              cursor: 'pointer',
             }}
           />
           {memory.dish_name && (
@@ -156,6 +163,7 @@ export default function FoodMemoryApp() {
   const [mapCenter, setMapCenter] = useState<[number, number] | null>(null);
   const [selectedMemory, setSelectedMemory] = useState<FoodMemory | null>(null);
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
+  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [tagInput, setTagInput] = useState('');
   const [editedTags, setEditedTags] = useState<string[]>([]);
   const [editedNote, setEditedNote] = useState('');
@@ -226,6 +234,17 @@ export default function FoodMemoryApp() {
   useEffect(() => {
     fetchMemories();
   }, []);
+
+  // Close fullscreen on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && fullscreenImage) {
+        setFullscreenImage(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [fullscreenImage]);
 
   const fetchMemories = async () => {
     try {
@@ -466,6 +485,7 @@ export default function FoodMemoryApp() {
                 markerClickedRef.current = true;
                 setSelectedMemory(prev => prev?.id === memory.id ? null : memory);
               }}
+              onImageClick={(imageUrl) => setFullscreenImage(imageUrl)}
             />
           ))}
         </MapContainer>
@@ -698,6 +718,59 @@ export default function FoodMemoryApp() {
         </div>
       )}
 
+      {/* Fullscreen image viewer */}
+      {fullscreenImage && (
+        <div
+          onClick={() => setFullscreenImage(null)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 1001,
+            background: 'rgba(0, 0, 0, 0.95)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            animation: 'fadeIn 0.2s ease',
+          }}
+        >
+          <button
+            onClick={() => setFullscreenImage(null)}
+            style={{
+              position: 'absolute',
+              top: '16px',
+              right: '16px',
+              width: '40px',
+              height: '40px',
+              borderRadius: '50%',
+              background: 'rgba(255, 255, 255, 0.1)',
+              border: 'none',
+              color: '#fff',
+              fontSize: '24px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            ×
+          </button>
+          <img
+            src={fullscreenImage}
+            alt="Full size"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: '95%',
+              maxHeight: '95%',
+              objectFit: 'contain',
+              borderRadius: '8px',
+            }}
+          />
+        </div>
+      )}
+
       {/* CSS animations */}
       <style>{`
         @keyframes spin {
@@ -710,6 +783,10 @@ export default function FoodMemoryApp() {
         @keyframes slideUp {
           from { opacity: 0; transform: translateY(20px); }
           to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
         }
         .leaflet-popup-content-wrapper {
           border-radius: 12px !important;
