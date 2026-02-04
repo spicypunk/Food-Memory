@@ -24,6 +24,8 @@ interface FoodMemory {
   dish_name: string | null;
   restaurant_name: string | null;
   photo_taken_at: string | null;
+  friend_tags: string[] | null;
+  personal_note: string | null;
 }
 
 // Custom food icon for Leaflet markers
@@ -153,8 +155,72 @@ export default function FoodMemoryApp() {
   const [error, setError] = useState<string | null>(null);
   const [mapCenter, setMapCenter] = useState<[number, number] | null>(null);
   const [selectedMemory, setSelectedMemory] = useState<FoodMemory | null>(null);
+  const [isSheetExpanded, setIsSheetExpanded] = useState(false);
+  const [tagInput, setTagInput] = useState('');
+  const [editedTags, setEditedTags] = useState<string[]>([]);
+  const [editedNote, setEditedNote] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const markerClickedRef = useRef(false);
+
+  // Sync local state when selected memory changes
+  useEffect(() => {
+    if (selectedMemory) {
+      setEditedTags(selectedMemory.friend_tags || []);
+      setEditedNote(selectedMemory.personal_note || '');
+    } else {
+      setIsSheetExpanded(false);
+      setEditedTags([]);
+      setEditedNote('');
+      setTagInput('');
+    }
+  }, [selectedMemory?.id]);
+
+  // Save changes to API
+  const saveMemoryChanges = async (tags: string[], note: string) => {
+    if (!selectedMemory) return;
+
+    try {
+      const res = await fetch(`/api/memories/${selectedMemory.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          friend_tags: tags.length > 0 ? tags : null,
+          personal_note: note || null,
+        }),
+      });
+
+      if (res.ok) {
+        const updated = await res.json();
+        // Update both the list and selected memory
+        setFoodMemories(prev => prev.map(m => m.id === updated.id ? updated : m));
+        setSelectedMemory(updated);
+      }
+    } catch (err) {
+      console.error('Failed to save memory:', err);
+    }
+  };
+
+  const handleAddTag = () => {
+    const trimmed = tagInput.trim();
+    if (trimmed && !editedTags.includes(trimmed)) {
+      const newTags = [...editedTags, trimmed];
+      setEditedTags(newTags);
+      setTagInput('');
+      saveMemoryChanges(newTags, editedNote);
+    }
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    const newTags = editedTags.filter(t => t !== tagToRemove);
+    setEditedTags(newTags);
+    saveMemoryChanges(newTags, editedNote);
+  };
+
+  const handleNoteBlur = () => {
+    if (selectedMemory && editedNote !== (selectedMemory.personal_note || '')) {
+      saveMemoryChanges(editedTags, editedNote);
+    }
+  };
 
   // Load existing memories on mount
   useEffect(() => {
@@ -425,18 +491,33 @@ export default function FoodMemoryApp() {
 
       {/* Memory detail sheet */}
       {selectedMemory && (
-        <div style={{
-          position: 'fixed',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          zIndex: 998,
-          background: 'rgba(26, 26, 46, 0.95)',
-          backdropFilter: 'blur(20px)',
-          borderRadius: '24px 24px 0 0',
-          padding: '20px',
-          animation: 'slideUp 0.3s ease',
-        }}>
+        <div
+          onClick={() => setIsSheetExpanded(!isSheetExpanded)}
+          style={{
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            zIndex: 998,
+            background: 'rgba(26, 26, 46, 0.95)',
+            backdropFilter: 'blur(20px)',
+            borderRadius: '24px 24px 0 0',
+            padding: '20px',
+            animation: 'slideUp 0.3s ease',
+            transition: 'max-height 0.3s ease',
+            maxHeight: isSheetExpanded ? '70vh' : '160px',
+            overflow: 'hidden',
+          }}
+        >
+          {/* Swipe handle */}
+          <div style={{
+            width: '36px',
+            height: '4px',
+            background: 'rgba(255,255,255,0.3)',
+            borderRadius: '2px',
+            margin: '0 auto 12px',
+          }} />
+
           <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
             <img
               src={selectedMemory.cropped_image_url}
@@ -483,6 +564,137 @@ export default function FoodMemoryApp() {
               )}
             </div>
           </div>
+
+          {/* Expanded content */}
+          {isSheetExpanded && (
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                marginTop: '16px',
+                paddingTop: '16px',
+                borderTop: '1px solid rgba(255,255,255,0.1)',
+              }}
+            >
+              {/* Friend tags section - contact chip style */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
+                {editedTags.map((tag) => (
+                  <span
+                    key={tag}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '4px 12px 4px 4px',
+                      background: 'rgba(200, 180, 220, 0.25)',
+                      borderRadius: '20px',
+                      color: '#fff',
+                      fontSize: '14px',
+                    }}
+                  >
+                    {/* Avatar circle with initial */}
+                    <span style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '50%',
+                      background: 'rgba(200, 180, 220, 0.5)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '13px',
+                      fontWeight: 500,
+                    }}>
+                      {tag.charAt(0).toUpperCase()}
+                    </span>
+                    {tag}
+                    <button
+                      onClick={() => handleRemoveTag(tag)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'rgba(255,255,255,0.5)',
+                        cursor: 'pointer',
+                        padding: 0,
+                        marginLeft: '2px',
+                        fontSize: '14px',
+                        lineHeight: 1,
+                      }}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+
+                {/* "+ Add name" inline input chip */}
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '4px 12px 4px 4px',
+                  border: '1px dashed rgba(255,255,255,0.3)',
+                  borderRadius: '20px',
+                }}>
+                  <span style={{
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '50%',
+                    background: 'rgba(255,255,255,0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '16px',
+                    color: 'rgba(255,255,255,0.5)',
+                  }}>+</span>
+                  <input
+                    type="text"
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddTag();
+                      }
+                    }}
+                    placeholder="Add name"
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#fff',
+                      fontSize: '14px',
+                      outline: 'none',
+                      width: '70px',
+                    }}
+                  />
+                </span>
+              </div>
+
+              {/* Personal note section - borderless */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '8px',
+              }}>
+                <span style={{ fontSize: '13px' }}>✨</span>
+                <textarea
+                  value={editedNote}
+                  onChange={(e) => setEditedNote(e.target.value)}
+                  onBlur={handleNoteBlur}
+                  placeholder="Add a personal note..."
+                  style={{
+                    flex: 1,
+                    background: 'transparent',
+                    border: 'none',
+                    color: editedNote ? '#fff' : 'rgba(255,255,255,0.4)',
+                    fontSize: '14px',
+                    outline: 'none',
+                    resize: 'none',
+                    minHeight: '20px',
+                    fontFamily: 'inherit',
+                    padding: 0,
+                  }}
+                />
+              </div>
+            </div>
+          )}
         </div>
       )}
 

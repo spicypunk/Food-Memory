@@ -18,7 +18,9 @@ export async function GET() {
         created_at,
         dish_name,
         restaurant_name,
-        photo_taken_at
+        photo_taken_at,
+        friend_tags,
+        personal_note
       FROM food_memories
       ORDER BY created_at DESC
       LIMIT 100
