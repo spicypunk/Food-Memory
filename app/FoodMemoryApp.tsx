@@ -603,25 +603,27 @@ export default function FoodMemoryApp() {
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
-                      gap: '6px',
-                      padding: '4px 12px 4px 4px',
-                      background: 'rgba(200, 180, 220, 0.25)',
-                      borderRadius: '20px',
-                      color: '#fff',
+                      gap: '8px',
+                      padding: '4px 16px 4px 4px',
+                      background: '#DCD0FF',
+                      borderRadius: '24px',
+                      color: '#1a1a1a',
                       fontSize: '14px',
+                      fontWeight: 500,
                     }}
                   >
                     {/* Avatar circle with initial */}
                     <span style={{
-                      width: '28px',
-                      height: '28px',
+                      width: '32px',
+                      height: '32px',
                       borderRadius: '50%',
-                      background: 'rgba(200, 180, 220, 0.5)',
+                      background: '#D4C8E8',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      fontSize: '13px',
-                      fontWeight: 500,
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      color: '#5A4A7A',
                     }}>
                       {tag.charAt(0).toUpperCase()}
                     </span>
@@ -631,11 +633,11 @@ export default function FoodMemoryApp() {
                       style={{
                         background: 'none',
                         border: 'none',
-                        color: 'rgba(255,255,255,0.5)',
+                        color: '#9A8AAA',
                         cursor: 'pointer',
                         padding: 0,
-                        marginLeft: '2px',
-                        fontSize: '14px',
+                        marginLeft: '4px',
+                        fontSize: '16px',
                         lineHeight: 1,
                       }}
                     >
