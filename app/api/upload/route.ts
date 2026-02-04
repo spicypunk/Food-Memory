@@ -67,7 +67,7 @@ async function identifyDishAndRestaurant(
               content: [
                 {
                   type: 'text',
-                  text: 'Identify this dish in 2-4 words. Be specific (e.g. "Shrimp Tempura" not "Japanese food"). Just return the dish name, nothing else.',
+                  text: 'Identify this dish in 2-4 words. Name the specific dish, not the cuisine type (e.g. "Chocolate Citrus Mousse" not "Japanese Dessert", "Beef Pho" not "Vietnamese Soup"). Just return the dish name, nothing else.',
                 },
                 {
                   type: 'image_url',
@@ -111,7 +111,7 @@ async function identifyDishAndRestaurant(
                 text: `You are looking at a food photo taken at one of these restaurants:
 ${restaurants.join(', ')}
 
-1. Identify the dish in 2-4 words (e.g., "Shrimp Tempura")
+1. Identify the specific dish in 2-4 words. Name the actual dish, not the cuisine type (e.g. "Chocolate Citrus Mousse" not "Japanese Dessert", "Beef Pho" not "Vietnamese Soup")
 2. Pick which restaurant this dish most likely came from based on the cuisine type
 
 Respond in JSON only: {"dish": "...", "restaurant": "..."}`,
