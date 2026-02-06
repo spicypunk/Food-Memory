@@ -155,31 +155,6 @@ function FoodMarker({
               {memory.dish_name}
             </p>
           )}
-          {memory.restaurant_name && (
-            memory.google_maps_url ? (
-              <a
-                href={memory.google_maps_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  margin: '4px 0 0',
-                  color: '#999',
-                  fontSize: '12px',
-                  textDecoration: 'none',
-                }}
-              >
-                📍 {memory.restaurant_name}
-              </a>
-            ) : (
-              <p style={{
-                margin: '4px 0 0',
-                color: '#999',
-                fontSize: '12px',
-              }}>
-                📍 {memory.restaurant_name}
-              </p>
-            )
-          )}
         </div>
       </Popup>
     </Marker>
@@ -199,6 +174,8 @@ export default function FoodMemoryApp() {
   const [pendingMemory, setPendingMemory] = useState<FoodMemory | null>(null);
   const [pendingDishName, setPendingDishName] = useState('');
   const [pendingRestaurantName, setPendingRestaurantName] = useState('');
+  const [nearbyRestaurants, setNearbyRestaurants] = useState<string[]>([]);
+  const [showRestaurantPicker, setShowRestaurantPicker] = useState(false);
   const [tagInput, setTagInput] = useState('');
   const [editedTags, setEditedTags] = useState<string[]>([]);
   const [editedNote, setEditedNote] = useState('');
@@ -379,12 +356,15 @@ export default function FoodMemoryApp() {
         throw new Error(errData.error || 'Upload failed');
       }
 
-      const newMemory = await res.json();
+      const responseData = await res.json();
+      const { nearby_restaurants, ...newMemory } = responseData;
 
       // Show confirmation modal instead of immediately adding to map
       setPendingMemory(newMemory);
       setPendingDishName(newMemory.dish_name || '');
       setPendingRestaurantName(newMemory.restaurant_name || '');
+      setNearbyRestaurants(nearby_restaurants || []);
+      setShowRestaurantPicker(false);
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');
@@ -899,7 +879,7 @@ export default function FoodMemoryApp() {
                   }}
                 />
               </div>
-              <div>
+              <div style={{ position: 'relative' }}>
                 <label style={{
                   display: 'block',
                   color: '#999',
@@ -907,24 +887,76 @@ export default function FoodMemoryApp() {
                   marginBottom: '4px',
                   fontWeight: 500,
                 }}>Restaurant</label>
-                <input
-                  type="text"
-                  value={pendingRestaurantName}
-                  onChange={(e) => setPendingRestaurantName(e.target.value)}
-                  placeholder="Where was it?"
+                <div
+                  onClick={() => nearbyRestaurants.length > 0 && setShowRestaurantPicker(!showRestaurantPicker)}
                   style={{
                     width: '100%',
                     padding: '10px 12px',
                     borderRadius: '12px',
-                    border: '1px solid #e0e0e0',
+                    border: showRestaurantPicker ? '1px solid #1a1a1a' : '1px solid #e0e0e0',
                     background: '#f8f8f8',
-                    color: '#1a1a1a',
+                    color: pendingRestaurantName ? '#1a1a1a' : '#999',
                     fontSize: '16px',
                     fontFamily: 'inherit',
-                    outline: 'none',
                     boxSizing: 'border-box',
+                    cursor: nearbyRestaurants.length > 0 ? 'pointer' : 'default',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
                   }}
-                />
+                >
+                  <span>{pendingRestaurantName || 'Where was it?'}</span>
+                  {nearbyRestaurants.length > 0 && (
+                    <svg
+                      width="16" height="16" viewBox="0 0 24 24" fill="none"
+                      stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                      style={{
+                        transform: showRestaurantPicker ? 'rotate(180deg)' : 'rotate(0deg)',
+                        transition: 'transform 0.2s ease',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  )}
+                </div>
+                {showRestaurantPicker && nearbyRestaurants.length > 0 && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    marginTop: '4px',
+                    background: '#fff',
+                    border: '1px solid #e0e0e0',
+                    borderRadius: '12px',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+                    maxHeight: '160px',
+                    overflowY: 'auto',
+                    zIndex: 10,
+                  }}>
+                    {nearbyRestaurants.map((name, i) => (
+                      <div
+                        key={i}
+                        onClick={() => {
+                          setPendingRestaurantName(name);
+                          setShowRestaurantPicker(false);
+                        }}
+                        style={{
+                          padding: '10px 12px',
+                          fontSize: '15px',
+                          color: '#1a1a1a',
+                          cursor: 'pointer',
+                          background: name === pendingRestaurantName ? '#f0f0f0' : 'transparent',
+                          borderBottom: i < nearbyRestaurants.length - 1 ? '1px solid #f0f0f0' : 'none',
+                          borderRadius: i === 0 ? '12px 12px 0 0' : i === nearbyRestaurants.length - 1 ? '0 0 12px 12px' : '0',
+                        }}
+                      >
+                        {name}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
             <button

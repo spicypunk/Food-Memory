@@ -288,7 +288,10 @@ export async function POST(request: NextRequest) {
       RETURNING id, original_image_url, cropped_image_url, latitude, longitude, dish_name, restaurant_name, photo_taken_at, google_maps_url, created_at
     `;
 
-    return NextResponse.json(result[0]);
+    return NextResponse.json({
+      ...result[0],
+      nearby_restaurants: restaurants.map(r => r.name),
+    });
 
   } catch (error) {
     console.error('Upload error:', error);
