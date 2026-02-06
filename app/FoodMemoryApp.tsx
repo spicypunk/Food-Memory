@@ -849,7 +849,7 @@ export default function FoodMemoryApp() {
           animation: 'fadeIn 0.2s ease',
         }}>
           <div style={{
-            background: 'rgba(26, 26, 46, 0.98)',
+            background: '#fff',
             borderRadius: '24px',
             padding: '28px 24px',
             width: '90%',
@@ -867,14 +867,14 @@ export default function FoodMemoryApp() {
                 height: '160px',
                 objectFit: 'contain',
                 borderRadius: '16px',
-                background: 'rgba(255,255,255,0.05)',
+                background: '#f5f5f5',
               }}
             />
             <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div>
                 <label style={{
                   display: 'block',
-                  color: 'rgba(255,255,255,0.5)',
+                  color: '#999',
                   fontSize: '12px',
                   marginBottom: '4px',
                   fontWeight: 500,
@@ -889,9 +889,9 @@ export default function FoodMemoryApp() {
                     width: '100%',
                     padding: '10px 12px',
                     borderRadius: '12px',
-                    border: '1px solid rgba(255,255,255,0.15)',
-                    background: 'rgba(255,255,255,0.06)',
-                    color: '#fff',
+                    border: '1px solid #e0e0e0',
+                    background: '#f8f8f8',
+                    color: '#1a1a1a',
                     fontSize: '16px',
                     fontFamily: 'inherit',
                     outline: 'none',
@@ -902,7 +902,7 @@ export default function FoodMemoryApp() {
               <div>
                 <label style={{
                   display: 'block',
-                  color: 'rgba(255,255,255,0.5)',
+                  color: '#999',
                   fontSize: '12px',
                   marginBottom: '4px',
                   fontWeight: 500,
@@ -916,9 +916,9 @@ export default function FoodMemoryApp() {
                     width: '100%',
                     padding: '10px 12px',
                     borderRadius: '12px',
-                    border: '1px solid rgba(255,255,255,0.15)',
-                    background: 'rgba(255,255,255,0.06)',
-                    color: '#fff',
+                    border: '1px solid #e0e0e0',
+                    background: '#f8f8f8',
+                    color: '#1a1a1a',
                     fontSize: '16px',
                     fontFamily: 'inherit',
                     outline: 'none',
@@ -934,8 +934,8 @@ export default function FoodMemoryApp() {
                 padding: '14px',
                 borderRadius: '14px',
                 border: 'none',
-                background: '#fff',
-                color: '#1a1a2e',
+                background: '#1a1a1a',
+                color: '#fff',
                 fontSize: '16px',
                 fontWeight: 700,
                 cursor: 'pointer',
