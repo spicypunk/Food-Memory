@@ -203,7 +203,6 @@ export default function FoodMemoryApp() {
   const [editedTags, setEditedTags] = useState<string[]>([]);
   const [editedNote, setEditedNote] = useState('');
   const [editedDishName, setEditedDishName] = useState('');
-  const [editedRestaurantName, setEditedRestaurantName] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const markerClickedRef = useRef(false);
 
@@ -213,13 +212,11 @@ export default function FoodMemoryApp() {
       setEditedTags(selectedMemory.friend_tags || []);
       setEditedNote(selectedMemory.personal_note || '');
       setEditedDishName(selectedMemory.dish_name || '');
-      setEditedRestaurantName(selectedMemory.restaurant_name || '');
     } else {
       setIsSheetExpanded(false);
       setEditedTags([]);
       setEditedNote('');
       setEditedDishName('');
-      setEditedRestaurantName('');
       setTagInput('');
     }
   }, [selectedMemory?.id]);
@@ -675,12 +672,27 @@ export default function FoodMemoryApp() {
               {selectedMemory.restaurant_name && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
                   <span style={{ fontSize: '12px' }}>📍</span>
-                  <span style={{
-                    color: 'rgba(255,255,255,0.4)',
-                    fontSize: '12px',
-                  }}>
-                    {selectedMemory.restaurant_name}
-                  </span>
+                  {selectedMemory.google_maps_url ? (
+                    <a
+                      href={selectedMemory.google_maps_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        color: 'rgba(255,255,255,0.4)',
+                        fontSize: '12px',
+                        textDecoration: 'none',
+                      }}
+                    >
+                      {selectedMemory.restaurant_name}
+                    </a>
+                  ) : (
+                    <span style={{
+                      color: 'rgba(255,255,255,0.4)',
+                      fontSize: '12px',
+                    }}>
+                      {selectedMemory.restaurant_name}
+                    </span>
+                  )}
                 </div>
               )}
             </div>

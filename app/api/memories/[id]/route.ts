@@ -20,8 +20,8 @@ async function lookupGoogleMapsUrl(
     const data = await res.json();
 
     if (data.results && data.results.length > 0) {
-      const placeId = data.results[0].place_id;
-      return `https://www.google.com/maps/place/?q=place_id:${placeId}`;
+      const place = data.results[0];
+      return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name || restaurantName)}&query_place_id=${place.place_id}`;
     }
     return null;
   } catch (err) {
