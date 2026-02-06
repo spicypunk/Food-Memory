@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import exifr from 'exifr';
@@ -76,19 +76,61 @@ function MapClickHandler({ onMapClick }: { onMapClick: () => void }) {
   return null;
 }
 
-// Food marker with synced popup
+// Haversine formula to calculate distance between two coordinates in meters
+function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000; // Earth's radius in meters
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+interface DishGroup {
+  key: string;
+  restaurant_name: string | null;
+  latitude: number;
+  longitude: number;
+  memories: FoodMemory[];
+}
+
+// Food marker with synced popup and swipe support for multiple dishes
 function FoodMarker({
-  memory,
-  isSelected,
-  onSelect,
+  group,
+  selectedMemoryId,
+  onSelectMemory,
   onImageClick
 }: {
-  memory: FoodMemory;
-  isSelected: boolean;
-  onSelect: () => void;
+  group: DishGroup;
+  selectedMemoryId: number | null;
+  onSelectMemory: (memory: FoodMemory | null) => void;
   onImageClick: (imageUrl: string) => void;
 }) {
   const markerRef = useRef<L.Marker | null>(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const touchStartX = useRef<number | null>(null);
+
+  const memories = group.memories;
+  const currentMemory = memories[currentIndex];
+  const hasMultiple = memories.length > 1;
+  const isSelected = memories.some(m => m.id === selectedMemoryId);
+
+  // Reset index when group changes or popup closes
+  useEffect(() => {
+    if (!isSelected) {
+      setCurrentIndex(0);
+    }
+  }, [isSelected, group.key]);
+
+  // Sync selected memory when swiping
+  useEffect(() => {
+    if (isSelected) {
+      onSelectMemory(currentMemory);
+    }
+  }, [currentIndex, isSelected]);
 
   useEffect(() => {
     if (markerRef.current) {
@@ -107,33 +149,65 @@ function FoodMarker({
       if (el) {
         const handleClick = (e: Event) => {
           e.stopPropagation();
-          onSelect();
+          if (isSelected) {
+            onSelectMemory(null);
+          } else {
+            setCurrentIndex(0);
+            onSelectMemory(memories[0]);
+          }
         };
         el.addEventListener('click', handleClick);
         return () => el.removeEventListener('click', handleClick);
       }
     }
-  }, [onSelect]);
+  }, [isSelected, memories, onSelectMemory]);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null) return;
+    const touchEndX = e.changedTouches[0].clientX;
+    const diff = touchStartX.current - touchEndX;
+
+    if (Math.abs(diff) > 50) { // 50px threshold
+      if (diff > 0 && currentIndex < memories.length - 1) {
+        // Swipe left - go to next
+        setCurrentIndex(currentIndex + 1);
+      } else if (diff < 0 && currentIndex > 0) {
+        // Swipe right - go to prev
+        setCurrentIndex(currentIndex - 1);
+      }
+    }
+    touchStartX.current = null;
+  };
 
   return (
     <Marker
       ref={markerRef}
-      position={[memory.latitude, memory.longitude]}
-      icon={createFoodIcon(memory.cropped_image_url)}
+      position={[group.latitude, group.longitude]}
+      icon={createFoodIcon(currentMemory.cropped_image_url)}
     >
       <Popup closeButton={false} closeOnClick={false} autoClose={false} className="food-popup">
-        <div style={{
-          textAlign: 'center',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-        }}>
+        <div
+          className="swipe-container"
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          style={{
+            textAlign: 'center',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            position: 'relative',
+          }}
+        >
           <img
-            src={memory.cropped_image_url}
+            src={currentMemory.cropped_image_url}
             alt="Food"
             onClick={(e) => {
               e.stopPropagation();
-              onImageClick(memory.original_image_url);
+              onImageClick(currentMemory.original_image_url);
             }}
             style={{
               width: '100%',
@@ -143,7 +217,7 @@ function FoodMarker({
               cursor: 'pointer',
             }}
           />
-          {memory.dish_name && (
+          {currentMemory.dish_name && (
             <p style={{
               margin: '0px 0 0',
               fontSize: '17px',
@@ -152,8 +226,37 @@ function FoodMarker({
               lineHeight: 1.3,
               wordBreak: 'break-word',
             }}>
-              {memory.dish_name}
+              {currentMemory.dish_name}
             </p>
+          )}
+
+          {/* Dot indicators */}
+          {hasMultiple && (
+            <div style={{
+              display: 'flex',
+              gap: '6px',
+              marginTop: '8px',
+              justifyContent: 'center',
+            }}>
+              {memories.map((_, idx) => (
+                <button
+                  key={idx}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCurrentIndex(idx);
+                  }}
+                  style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    border: 'none',
+                    background: idx === currentIndex ? '#444' : '#ccc',
+                    cursor: 'pointer',
+                    padding: 0,
+                  }}
+                />
+              ))}
+            </div>
           )}
         </div>
       </Popup>
@@ -182,6 +285,46 @@ export default function FoodMemoryApp() {
   const [editedDishName, setEditedDishName] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const markerClickedRef = useRef(false);
+
+  // Group memories by restaurant name + location (within 50m)
+  const dishGroups = useMemo<DishGroup[]>(() => {
+    const groups: DishGroup[] = [];
+
+    for (const memory of foodMemories) {
+      // Only group if memory has a restaurant name
+      if (!memory.restaurant_name) {
+        // No restaurant - treat as individual group
+        groups.push({
+          key: `single-${memory.id}`,
+          restaurant_name: null,
+          latitude: memory.latitude,
+          longitude: memory.longitude,
+          memories: [memory],
+        });
+        continue;
+      }
+
+      // Try to find an existing group with same restaurant name and within 50m
+      const existingGroup = groups.find(g =>
+        g.restaurant_name === memory.restaurant_name &&
+        getDistanceMeters(g.latitude, g.longitude, memory.latitude, memory.longitude) <= 50
+      );
+
+      if (existingGroup) {
+        existingGroup.memories.push(memory);
+      } else {
+        groups.push({
+          key: `group-${memory.restaurant_name}-${memory.latitude}-${memory.longitude}`,
+          restaurant_name: memory.restaurant_name,
+          latitude: memory.latitude,
+          longitude: memory.longitude,
+          memories: [memory],
+        });
+      }
+    }
+
+    return groups;
+  }, [foodMemories]);
 
   // Sync local state when selected memory changes
   useEffect(() => {
@@ -534,14 +677,14 @@ export default function FoodMemoryApp() {
             }, 0);
           }} />
           
-          {foodMemories.map((memory) => (
+          {dishGroups.map((group) => (
             <FoodMarker
-              key={memory.id}
-              memory={memory}
-              isSelected={selectedMemory?.id === memory.id}
-              onSelect={() => {
+              key={group.key}
+              group={group}
+              selectedMemoryId={selectedMemory?.id ?? null}
+              onSelectMemory={(memory) => {
                 markerClickedRef.current = true;
-                setSelectedMemory(prev => prev?.id === memory.id ? null : memory);
+                setSelectedMemory(memory);
               }}
               onImageClick={(imageUrl) => setFullscreenImage(imageUrl)}
             />
@@ -887,37 +1030,56 @@ export default function FoodMemoryApp() {
                   marginBottom: '4px',
                   fontWeight: 500,
                 }}>Restaurant</label>
-                <div
-                  onClick={() => nearbyRestaurants.length > 0 && setShowRestaurantPicker(!showRestaurantPicker)}
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    borderRadius: '12px',
-                    border: showRestaurantPicker ? '1px solid #1a1a1a' : '1px solid #e0e0e0',
-                    background: '#f8f8f8',
-                    color: pendingRestaurantName ? '#1a1a1a' : '#999',
-                    fontSize: '16px',
-                    fontFamily: 'inherit',
-                    boxSizing: 'border-box',
-                    cursor: nearbyRestaurants.length > 0 ? 'pointer' : 'default',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                  }}
-                >
-                  <span>{pendingRestaurantName || 'Where was it?'}</span>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  borderRadius: '12px',
+                  border: showRestaurantPicker ? '1px solid #1a1a1a' : '1px solid #e0e0e0',
+                  background: '#f8f8f8',
+                  boxSizing: 'border-box',
+                }}>
+                  <input
+                    type="text"
+                    value={pendingRestaurantName}
+                    onChange={(e) => setPendingRestaurantName(e.target.value)}
+                    onFocus={() => nearbyRestaurants.length > 0 && setShowRestaurantPicker(true)}
+                    placeholder="Where was it?"
+                    style={{
+                      flex: 1,
+                      padding: '10px 12px',
+                      border: 'none',
+                      background: 'transparent',
+                      color: '#1a1a1a',
+                      fontSize: '16px',
+                      fontFamily: 'inherit',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                    }}
+                  />
                   {nearbyRestaurants.length > 0 && (
-                    <svg
-                      width="16" height="16" viewBox="0 0 24 24" fill="none"
-                      stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                    <button
+                      type="button"
+                      onClick={() => setShowRestaurantPicker(!showRestaurantPicker)}
                       style={{
-                        transform: showRestaurantPicker ? 'rotate(180deg)' : 'rotate(0deg)',
-                        transition: 'transform 0.2s ease',
-                        flexShrink: 0,
+                        padding: '10px 12px',
+                        border: 'none',
+                        background: 'transparent',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
                       }}
                     >
-                      <polyline points="6 9 12 15 18 9" />
-                    </svg>
+                      <svg
+                        width="16" height="16" viewBox="0 0 24 24" fill="none"
+                        stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                        style={{
+                          transform: showRestaurantPicker ? 'rotate(180deg)' : 'rotate(0deg)',
+                          transition: 'transform 0.2s ease',
+                        }}
+                      >
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                    </button>
                   )}
                 </div>
                 {showRestaurantPicker && nearbyRestaurants.length > 0 && (
