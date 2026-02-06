@@ -26,6 +26,7 @@ interface FoodMemory {
   photo_taken_at: string | null;
   friend_tags: string[] | null;
   personal_note: string | null;
+  google_maps_url: string | null;
 }
 
 // Custom food icon for Leaflet markers
@@ -50,7 +51,7 @@ const createFoodIcon = (imageUrl: string) => {
     `,
     iconSize: [56, 56],
     iconAnchor: [28, 28],
-    popupAnchor: [0, -28],
+    popupAnchor: [0, 0],
   });
 };
 
@@ -79,11 +80,13 @@ function MapClickHandler({ onMapClick }: { onMapClick: () => void }) {
 function FoodMarker({
   memory,
   isSelected,
-  onSelect
+  onSelect,
+  onImageClick
 }: {
   memory: FoodMemory;
   isSelected: boolean;
   onSelect: () => void;
+  onImageClick: (imageUrl: string) => void;
 }) {
   const markerRef = useRef<L.Marker | null>(null);
 
@@ -118,25 +121,36 @@ function FoodMarker({
       position={[memory.latitude, memory.longitude]}
       icon={createFoodIcon(memory.cropped_image_url)}
     >
-      <Popup closeButton={false} closeOnClick={false} autoClose={false}>
-        <div style={{ textAlign: 'center', minWidth: '150px' }}>
+      <Popup closeButton={false} closeOnClick={false} autoClose={false} className="food-popup">
+        <div style={{
+          textAlign: 'center',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+        }}>
           <img
             src={memory.cropped_image_url}
             alt="Food"
+            onClick={(e) => {
+              e.stopPropagation();
+              onImageClick(memory.original_image_url);
+            }}
             style={{
-              width: '120px',
-              height: '120px',
+              width: '100%',
+              maxWidth: '100%',
+              height: 'auto',
               objectFit: 'contain',
-              borderRadius: '8px',
-              background: '#f5f5f5',
+              cursor: 'pointer',
             }}
           />
           {memory.dish_name && (
             <p style={{
-              margin: '8px 0 0',
-              fontSize: '14px',
-              fontWeight: 600,
-              color: '#333',
+              margin: '0px 0 0',
+              fontSize: '17px',
+              fontWeight: 700,
+              color: '#444',
+              lineHeight: 1.3,
+              wordBreak: 'break-word',
             }}>
               {memory.dish_name}
             </p>
@@ -156,9 +170,16 @@ export default function FoodMemoryApp() {
   const [mapCenter, setMapCenter] = useState<[number, number] | null>(null);
   const [selectedMemory, setSelectedMemory] = useState<FoodMemory | null>(null);
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
+  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
+  const [pendingMemory, setPendingMemory] = useState<FoodMemory | null>(null);
+  const [pendingDishName, setPendingDishName] = useState('');
+  const [pendingRestaurantName, setPendingRestaurantName] = useState('');
+  const [nearbyRestaurants, setNearbyRestaurants] = useState<string[]>([]);
+  const [showRestaurantPicker, setShowRestaurantPicker] = useState(false);
   const [tagInput, setTagInput] = useState('');
   const [editedTags, setEditedTags] = useState<string[]>([]);
   const [editedNote, setEditedNote] = useState('');
+  const [editedDishName, setEditedDishName] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const markerClickedRef = useRef(false);
 
@@ -167,26 +188,34 @@ export default function FoodMemoryApp() {
     if (selectedMemory) {
       setEditedTags(selectedMemory.friend_tags || []);
       setEditedNote(selectedMemory.personal_note || '');
+      setEditedDishName(selectedMemory.dish_name || '');
     } else {
       setIsSheetExpanded(false);
       setEditedTags([]);
       setEditedNote('');
+      setEditedDishName('');
       setTagInput('');
     }
   }, [selectedMemory?.id]);
 
   // Save changes to API
-  const saveMemoryChanges = async (tags: string[], note: string) => {
+  const saveMemoryChanges = async (tags: string[], note: string, dishName?: string, restaurantName?: string) => {
     if (!selectedMemory) return;
 
     try {
+      const payload: Record<string, unknown> = {
+        friend_tags: tags.length > 0 ? tags : null,
+        personal_note: note || null,
+        dish_name: dishName !== undefined ? (dishName || null) : (selectedMemory.dish_name ?? null),
+      };
+      if (restaurantName !== undefined) {
+        payload.restaurant_name = restaurantName || null;
+      }
+
       const res = await fetch(`/api/memories/${selectedMemory.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          friend_tags: tags.length > 0 ? tags : null,
-          personal_note: note || null,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
@@ -222,10 +251,55 @@ export default function FoodMemoryApp() {
     }
   };
 
+  const handleConfirmUpload = async () => {
+    if (!pendingMemory) return;
+
+    let finalMemory = pendingMemory;
+    const dishChanged = pendingDishName !== (pendingMemory.dish_name || '');
+    const restaurantChanged = pendingRestaurantName !== (pendingMemory.restaurant_name || '');
+
+    if (dishChanged || restaurantChanged) {
+      try {
+        const payload: Record<string, unknown> = {
+          dish_name: pendingDishName || null,
+        };
+        if (restaurantChanged) payload.restaurant_name = pendingRestaurantName || null;
+
+        const res = await fetch(`/api/memories/${pendingMemory.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        if (res.ok) {
+          finalMemory = await res.json();
+        }
+      } catch (err) {
+        console.error('Failed to update memory names:', err);
+      }
+    }
+
+    setFoodMemories(prev => [finalMemory, ...prev]);
+    setMapCenter([finalMemory.latitude, finalMemory.longitude]);
+    setSelectedMemory(finalMemory);
+    setPendingMemory(null);
+  };
+
   // Load existing memories on mount
   useEffect(() => {
     fetchMemories();
   }, []);
+
+  // Close fullscreen on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && fullscreenImage) {
+        setFullscreenImage(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [fullscreenImage]);
 
   const fetchMemories = async () => {
     try {
@@ -282,12 +356,15 @@ export default function FoodMemoryApp() {
         throw new Error(errData.error || 'Upload failed');
       }
 
-      const newMemory = await res.json();
-      
-      // Add to state and center map
-      setFoodMemories(prev => [newMemory, ...prev]);
-      setMapCenter([newMemory.latitude, newMemory.longitude]);
-      setSelectedMemory(newMemory);
+      const responseData = await res.json();
+      const { nearby_restaurants, ...newMemory } = responseData;
+
+      // Show confirmation modal instead of immediately adding to map
+      setPendingMemory(newMemory);
+      setPendingDishName(newMemory.dish_name || '');
+      setPendingRestaurantName(newMemory.restaurant_name || '');
+      setNearbyRestaurants(nearby_restaurants || []);
+      setShowRestaurantPicker(false);
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');
@@ -466,6 +543,7 @@ export default function FoodMemoryApp() {
                 markerClickedRef.current = true;
                 setSelectedMemory(prev => prev?.id === memory.id ? null : memory);
               }}
+              onImageClick={(imageUrl) => setFullscreenImage(imageUrl)}
             />
           ))}
         </MapContainer>
@@ -530,17 +608,35 @@ export default function FoodMemoryApp() {
                 background: 'rgba(255,255,255,0.05)',
               }}
             />
-            <div>
-              {selectedMemory.dish_name && (
-                <p style={{
+            <div onClick={(e) => e.stopPropagation()}>
+              <input
+                type="text"
+                value={editedDishName}
+                onChange={(e) => setEditedDishName(e.target.value)}
+                onBlur={() => {
+                  if (editedDishName !== (selectedMemory.dish_name || '')) {
+                    saveMemoryChanges(editedTags, editedNote, editedDishName);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    (e.target as HTMLInputElement).blur();
+                  }
+                }}
+                placeholder="Add dish name..."
+                style={{
                   margin: 0,
                   color: '#fff',
                   fontSize: '18px',
                   fontWeight: 700,
-                }}>
-                  {selectedMemory.dish_name}
-                </p>
-              )}
+                  background: 'transparent',
+                  border: 'none',
+                  outline: 'none',
+                  padding: 0,
+                  width: '100%',
+                  fontFamily: 'inherit',
+                }}
+              />
               <p style={{
                 margin: '4px 0 0',
                 color: 'rgba(255,255,255,0.5)',
@@ -554,13 +650,30 @@ export default function FoodMemoryApp() {
                 })}
               </p>
               {selectedMemory.restaurant_name && (
-                <p style={{
-                  margin: '4px 0 0',
-                  color: 'rgba(255,255,255,0.4)',
-                  fontSize: '12px',
-                }}>
-                  📍 {selectedMemory.restaurant_name}
-                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
+                  <span style={{ fontSize: '12px' }}>📍</span>
+                  {selectedMemory.google_maps_url ? (
+                    <a
+                      href={selectedMemory.google_maps_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        color: 'rgba(255,255,255,0.4)',
+                        fontSize: '12px',
+                        textDecoration: 'none',
+                      }}
+                    >
+                      {selectedMemory.restaurant_name}
+                    </a>
+                  ) : (
+                    <span style={{
+                      color: 'rgba(255,255,255,0.4)',
+                      fontSize: '12px',
+                    }}>
+                      {selectedMemory.restaurant_name}
+                    </span>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -583,25 +696,27 @@ export default function FoodMemoryApp() {
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
-                      gap: '6px',
-                      padding: '4px 12px 4px 4px',
-                      background: 'rgba(200, 180, 220, 0.25)',
-                      borderRadius: '20px',
-                      color: '#fff',
+                      gap: '8px',
+                      padding: '4px 16px 4px 4px',
+                      background: '#DCD0FF',
+                      borderRadius: '24px',
+                      color: '#1a1a1a',
                       fontSize: '14px',
+                      fontWeight: 500,
                     }}
                   >
                     {/* Avatar circle with initial */}
                     <span style={{
-                      width: '28px',
-                      height: '28px',
+                      width: '32px',
+                      height: '32px',
                       borderRadius: '50%',
-                      background: 'rgba(200, 180, 220, 0.5)',
+                      background: '#D4C8E8',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      fontSize: '13px',
-                      fontWeight: 500,
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      color: '#5A4A7A',
                     }}>
                       {tag.charAt(0).toUpperCase()}
                     </span>
@@ -611,11 +726,11 @@ export default function FoodMemoryApp() {
                       style={{
                         background: 'none',
                         border: 'none',
-                        color: 'rgba(255,255,255,0.5)',
+                        color: '#9A8AAA',
                         cursor: 'pointer',
                         padding: 0,
-                        marginLeft: '2px',
-                        fontSize: '14px',
+                        marginLeft: '4px',
+                        fontSize: '16px',
                         lineHeight: 1,
                       }}
                     >
@@ -698,6 +813,226 @@ export default function FoodMemoryApp() {
         </div>
       )}
 
+      {/* Upload confirmation modal */}
+      {pendingMemory && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 1002,
+          background: 'rgba(0, 0, 0, 0.85)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          animation: 'fadeIn 0.2s ease',
+        }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: '24px',
+            padding: '28px 24px',
+            width: '90%',
+            maxWidth: '340px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '20px',
+          }}>
+            <img
+              src={pendingMemory.cropped_image_url}
+              alt="Food"
+              style={{
+                width: '160px',
+                height: '160px',
+                objectFit: 'contain',
+                borderRadius: '16px',
+                background: '#f5f5f5',
+              }}
+            />
+            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label style={{
+                  display: 'block',
+                  color: '#999',
+                  fontSize: '12px',
+                  marginBottom: '4px',
+                  fontWeight: 500,
+                }}>Dish name</label>
+                <input
+                  type="text"
+                  value={pendingDishName}
+                  onChange={(e) => setPendingDishName(e.target.value)}
+                  placeholder="What did you eat?"
+                  autoFocus
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: '12px',
+                    border: '1px solid #e0e0e0',
+                    background: '#f8f8f8',
+                    color: '#1a1a1a',
+                    fontSize: '16px',
+                    fontFamily: 'inherit',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+              <div style={{ position: 'relative' }}>
+                <label style={{
+                  display: 'block',
+                  color: '#999',
+                  fontSize: '12px',
+                  marginBottom: '4px',
+                  fontWeight: 500,
+                }}>Restaurant</label>
+                <div
+                  onClick={() => nearbyRestaurants.length > 0 && setShowRestaurantPicker(!showRestaurantPicker)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: '12px',
+                    border: showRestaurantPicker ? '1px solid #1a1a1a' : '1px solid #e0e0e0',
+                    background: '#f8f8f8',
+                    color: pendingRestaurantName ? '#1a1a1a' : '#999',
+                    fontSize: '16px',
+                    fontFamily: 'inherit',
+                    boxSizing: 'border-box',
+                    cursor: nearbyRestaurants.length > 0 ? 'pointer' : 'default',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <span>{pendingRestaurantName || 'Where was it?'}</span>
+                  {nearbyRestaurants.length > 0 && (
+                    <svg
+                      width="16" height="16" viewBox="0 0 24 24" fill="none"
+                      stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                      style={{
+                        transform: showRestaurantPicker ? 'rotate(180deg)' : 'rotate(0deg)',
+                        transition: 'transform 0.2s ease',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  )}
+                </div>
+                {showRestaurantPicker && nearbyRestaurants.length > 0 && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    marginTop: '4px',
+                    background: '#fff',
+                    border: '1px solid #e0e0e0',
+                    borderRadius: '12px',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+                    maxHeight: '160px',
+                    overflowY: 'auto',
+                    zIndex: 10,
+                  }}>
+                    {nearbyRestaurants.map((name, i) => (
+                      <div
+                        key={i}
+                        onClick={() => {
+                          setPendingRestaurantName(name);
+                          setShowRestaurantPicker(false);
+                        }}
+                        style={{
+                          padding: '10px 12px',
+                          fontSize: '15px',
+                          color: '#1a1a1a',
+                          cursor: 'pointer',
+                          background: name === pendingRestaurantName ? '#f0f0f0' : 'transparent',
+                          borderBottom: i < nearbyRestaurants.length - 1 ? '1px solid #f0f0f0' : 'none',
+                          borderRadius: i === 0 ? '12px 12px 0 0' : i === nearbyRestaurants.length - 1 ? '0 0 12px 12px' : '0',
+                        }}
+                      >
+                        {name}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={handleConfirmUpload}
+              style={{
+                width: '100%',
+                padding: '14px',
+                borderRadius: '14px',
+                border: 'none',
+                background: '#1a1a1a',
+                color: '#fff',
+                fontSize: '16px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              Confirm
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Fullscreen image viewer */}
+      {fullscreenImage && (
+        <div
+          onClick={() => setFullscreenImage(null)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 1001,
+            background: 'rgba(0, 0, 0, 0.95)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            animation: 'fadeIn 0.2s ease',
+          }}
+        >
+          <button
+            onClick={() => setFullscreenImage(null)}
+            style={{
+              position: 'absolute',
+              top: '16px',
+              right: '16px',
+              width: '40px',
+              height: '40px',
+              borderRadius: '50%',
+              background: 'rgba(255, 255, 255, 0.1)',
+              border: 'none',
+              color: '#fff',
+              fontSize: '24px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            ×
+          </button>
+          <img
+            src={fullscreenImage}
+            alt="Full size"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: '95%',
+              maxHeight: '95%',
+              objectFit: 'contain',
+              borderRadius: '8px',
+            }}
+          />
+        </div>
+      )}
+
       {/* CSS animations */}
       <style>{`
         @keyframes spin {
@@ -711,8 +1046,21 @@ export default function FoodMemoryApp() {
           from { opacity: 0; transform: translateY(20px); }
           to { opacity: 1; transform: translateY(0); }
         }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
         .leaflet-popup-content-wrapper {
-          border-radius: 12px !important;
+          border-radius: 140px !important;
+          padding: 0 !important;
+          width: 260px !important;
+          box-shadow: 0 8px 20px rgba(0,0,0,0.25) !important;
+        }
+        .leaflet-popup-content {
+          margin: 0 !important;
+          width: 260px !important;
+          padding: 36px 20px 44px !important;
+          box-sizing: border-box;
         }
         .food-marker {
           background: none !important;
