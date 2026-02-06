@@ -20,7 +20,8 @@ export async function GET() {
         restaurant_name,
         photo_taken_at,
         friend_tags,
-        personal_note
+        personal_note,
+        google_maps_url
       FROM food_memories
       ORDER BY created_at DESC
       LIMIT 100

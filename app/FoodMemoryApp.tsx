@@ -26,6 +26,7 @@ interface FoodMemory {
   photo_taken_at: string | null;
   friend_tags: string[] | null;
   personal_note: string | null;
+  google_maps_url: string | null;
 }
 
 // Custom food icon for Leaflet markers
@@ -154,6 +155,31 @@ function FoodMarker({
               {memory.dish_name}
             </p>
           )}
+          {memory.restaurant_name && (
+            memory.google_maps_url ? (
+              <a
+                href={memory.google_maps_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  margin: '4px 0 0',
+                  color: '#999',
+                  fontSize: '12px',
+                  textDecoration: 'none',
+                }}
+              >
+                📍 {memory.restaurant_name}
+              </a>
+            ) : (
+              <p style={{
+                margin: '4px 0 0',
+                color: '#999',
+                fontSize: '12px',
+              }}>
+                📍 {memory.restaurant_name}
+              </p>
+            )
+          )}
         </div>
       </Popup>
     </Marker>
@@ -170,10 +196,14 @@ export default function FoodMemoryApp() {
   const [selectedMemory, setSelectedMemory] = useState<FoodMemory | null>(null);
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
+  const [pendingMemory, setPendingMemory] = useState<FoodMemory | null>(null);
+  const [pendingDishName, setPendingDishName] = useState('');
+  const [pendingRestaurantName, setPendingRestaurantName] = useState('');
   const [tagInput, setTagInput] = useState('');
   const [editedTags, setEditedTags] = useState<string[]>([]);
   const [editedNote, setEditedNote] = useState('');
   const [editedDishName, setEditedDishName] = useState('');
+  const [editedRestaurantName, setEditedRestaurantName] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const markerClickedRef = useRef(false);
 
@@ -183,28 +213,35 @@ export default function FoodMemoryApp() {
       setEditedTags(selectedMemory.friend_tags || []);
       setEditedNote(selectedMemory.personal_note || '');
       setEditedDishName(selectedMemory.dish_name || '');
+      setEditedRestaurantName(selectedMemory.restaurant_name || '');
     } else {
       setIsSheetExpanded(false);
       setEditedTags([]);
       setEditedNote('');
       setEditedDishName('');
+      setEditedRestaurantName('');
       setTagInput('');
     }
   }, [selectedMemory?.id]);
 
   // Save changes to API
-  const saveMemoryChanges = async (tags: string[], note: string, dishName?: string) => {
+  const saveMemoryChanges = async (tags: string[], note: string, dishName?: string, restaurantName?: string) => {
     if (!selectedMemory) return;
 
     try {
+      const payload: Record<string, unknown> = {
+        friend_tags: tags.length > 0 ? tags : null,
+        personal_note: note || null,
+        dish_name: dishName !== undefined ? (dishName || null) : (selectedMemory.dish_name ?? null),
+      };
+      if (restaurantName !== undefined) {
+        payload.restaurant_name = restaurantName || null;
+      }
+
       const res = await fetch(`/api/memories/${selectedMemory.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          friend_tags: tags.length > 0 ? tags : null,
-          personal_note: note || null,
-          dish_name: dishName !== undefined ? (dishName || null) : (selectedMemory.dish_name ?? null),
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
@@ -238,6 +275,40 @@ export default function FoodMemoryApp() {
     if (selectedMemory && editedNote !== (selectedMemory.personal_note || '')) {
       saveMemoryChanges(editedTags, editedNote);
     }
+  };
+
+  const handleConfirmUpload = async () => {
+    if (!pendingMemory) return;
+
+    let finalMemory = pendingMemory;
+    const dishChanged = pendingDishName !== (pendingMemory.dish_name || '');
+    const restaurantChanged = pendingRestaurantName !== (pendingMemory.restaurant_name || '');
+
+    if (dishChanged || restaurantChanged) {
+      try {
+        const payload: Record<string, unknown> = {
+          dish_name: pendingDishName || null,
+        };
+        if (restaurantChanged) payload.restaurant_name = pendingRestaurantName || null;
+
+        const res = await fetch(`/api/memories/${pendingMemory.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        if (res.ok) {
+          finalMemory = await res.json();
+        }
+      } catch (err) {
+        console.error('Failed to update memory names:', err);
+      }
+    }
+
+    setFoodMemories(prev => [finalMemory, ...prev]);
+    setMapCenter([finalMemory.latitude, finalMemory.longitude]);
+    setSelectedMemory(finalMemory);
+    setPendingMemory(null);
   };
 
   // Load existing memories on mount
@@ -312,11 +383,11 @@ export default function FoodMemoryApp() {
       }
 
       const newMemory = await res.json();
-      
-      // Add to state and center map
-      setFoodMemories(prev => [newMemory, ...prev]);
-      setMapCenter([newMemory.latitude, newMemory.longitude]);
-      setSelectedMemory(newMemory);
+
+      // Show confirmation modal instead of immediately adding to map
+      setPendingMemory(newMemory);
+      setPendingDishName(newMemory.dish_name || '');
+      setPendingRestaurantName(newMemory.restaurant_name || '');
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');
@@ -602,13 +673,15 @@ export default function FoodMemoryApp() {
                 })}
               </p>
               {selectedMemory.restaurant_name && (
-                <p style={{
-                  margin: '4px 0 0',
-                  color: 'rgba(255,255,255,0.4)',
-                  fontSize: '12px',
-                }}>
-                  📍 {selectedMemory.restaurant_name}
-                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
+                  <span style={{ fontSize: '12px' }}>📍</span>
+                  <span style={{
+                    color: 'rgba(255,255,255,0.4)',
+                    fontSize: '12px',
+                  }}>
+                    {selectedMemory.restaurant_name}
+                  </span>
+                </div>
               )}
             </div>
           </div>
@@ -748,6 +821,121 @@ export default function FoodMemoryApp() {
         </div>
       )}
 
+      {/* Upload confirmation modal */}
+      {pendingMemory && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 1002,
+          background: 'rgba(0, 0, 0, 0.85)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          animation: 'fadeIn 0.2s ease',
+        }}>
+          <div style={{
+            background: 'rgba(26, 26, 46, 0.98)',
+            borderRadius: '24px',
+            padding: '28px 24px',
+            width: '90%',
+            maxWidth: '340px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '20px',
+          }}>
+            <img
+              src={pendingMemory.cropped_image_url}
+              alt="Food"
+              style={{
+                width: '160px',
+                height: '160px',
+                objectFit: 'contain',
+                borderRadius: '16px',
+                background: 'rgba(255,255,255,0.05)',
+              }}
+            />
+            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label style={{
+                  display: 'block',
+                  color: 'rgba(255,255,255,0.5)',
+                  fontSize: '12px',
+                  marginBottom: '4px',
+                  fontWeight: 500,
+                }}>Dish name</label>
+                <input
+                  type="text"
+                  value={pendingDishName}
+                  onChange={(e) => setPendingDishName(e.target.value)}
+                  placeholder="What did you eat?"
+                  autoFocus
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: '12px',
+                    border: '1px solid rgba(255,255,255,0.15)',
+                    background: 'rgba(255,255,255,0.06)',
+                    color: '#fff',
+                    fontSize: '16px',
+                    fontFamily: 'inherit',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{
+                  display: 'block',
+                  color: 'rgba(255,255,255,0.5)',
+                  fontSize: '12px',
+                  marginBottom: '4px',
+                  fontWeight: 500,
+                }}>Restaurant</label>
+                <input
+                  type="text"
+                  value={pendingRestaurantName}
+                  onChange={(e) => setPendingRestaurantName(e.target.value)}
+                  placeholder="Where was it?"
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: '12px',
+                    border: '1px solid rgba(255,255,255,0.15)',
+                    background: 'rgba(255,255,255,0.06)',
+                    color: '#fff',
+                    fontSize: '16px',
+                    fontFamily: 'inherit',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+            </div>
+            <button
+              onClick={handleConfirmUpload}
+              style={{
+                width: '100%',
+                padding: '14px',
+                borderRadius: '14px',
+                border: 'none',
+                background: '#fff',
+                color: '#1a1a2e',
+                fontSize: '16px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              Confirm
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Fullscreen image viewer */}
       {fullscreenImage && (
         <div
@@ -822,6 +1010,7 @@ export default function FoodMemoryApp() {
           border-radius: 140px !important;
           padding: 0 !important;
           width: 260px !important;
+          box-shadow: 0 8px 20px rgba(0,0,0,0.25) !important;
         }
         .leaflet-popup-content {
           margin: 0 !important;
