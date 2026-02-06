@@ -50,7 +50,7 @@ const createFoodIcon = (imageUrl: string) => {
     `,
     iconSize: [56, 56],
     iconAnchor: [28, 28],
-    popupAnchor: [0, -28],
+    popupAnchor: [0, 0],
   });
 };
 
@@ -120,8 +120,13 @@ function FoodMarker({
       position={[memory.latitude, memory.longitude]}
       icon={createFoodIcon(memory.cropped_image_url)}
     >
-      <Popup closeButton={false} closeOnClick={false} autoClose={false}>
-        <div style={{ textAlign: 'center', minWidth: '150px' }}>
+      <Popup closeButton={false} closeOnClick={false} autoClose={false} className="food-popup">
+        <div style={{
+          textAlign: 'center',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+        }}>
           <img
             src={memory.cropped_image_url}
             alt="Food"
@@ -130,20 +135,21 @@ function FoodMarker({
               onImageClick(memory.original_image_url);
             }}
             style={{
-              width: '120px',
-              height: '120px',
+              width: '100%',
+              maxWidth: '100%',
+              height: 'auto',
               objectFit: 'contain',
-              borderRadius: '8px',
-              background: '#f5f5f5',
               cursor: 'pointer',
             }}
           />
           {memory.dish_name && (
             <p style={{
-              margin: '8px 0 0',
-              fontSize: '14px',
-              fontWeight: 600,
-              color: '#333',
+              margin: '0px 0 0',
+              fontSize: '17px',
+              fontWeight: 700,
+              color: '#444',
+              lineHeight: 1.3,
+              wordBreak: 'break-word',
             }}>
               {memory.dish_name}
             </p>
@@ -167,6 +173,7 @@ export default function FoodMemoryApp() {
   const [tagInput, setTagInput] = useState('');
   const [editedTags, setEditedTags] = useState<string[]>([]);
   const [editedNote, setEditedNote] = useState('');
+  const [editedDishName, setEditedDishName] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const markerClickedRef = useRef(false);
 
@@ -175,16 +182,18 @@ export default function FoodMemoryApp() {
     if (selectedMemory) {
       setEditedTags(selectedMemory.friend_tags || []);
       setEditedNote(selectedMemory.personal_note || '');
+      setEditedDishName(selectedMemory.dish_name || '');
     } else {
       setIsSheetExpanded(false);
       setEditedTags([]);
       setEditedNote('');
+      setEditedDishName('');
       setTagInput('');
     }
   }, [selectedMemory?.id]);
 
   // Save changes to API
-  const saveMemoryChanges = async (tags: string[], note: string) => {
+  const saveMemoryChanges = async (tags: string[], note: string, dishName?: string) => {
     if (!selectedMemory) return;
 
     try {
@@ -194,6 +203,7 @@ export default function FoodMemoryApp() {
         body: JSON.stringify({
           friend_tags: tags.length > 0 ? tags : null,
           personal_note: note || null,
+          dish_name: dishName !== undefined ? (dishName || null) : (selectedMemory.dish_name ?? null),
         }),
       });
 
@@ -550,17 +560,35 @@ export default function FoodMemoryApp() {
                 background: 'rgba(255,255,255,0.05)',
               }}
             />
-            <div>
-              {selectedMemory.dish_name && (
-                <p style={{
+            <div onClick={(e) => e.stopPropagation()}>
+              <input
+                type="text"
+                value={editedDishName}
+                onChange={(e) => setEditedDishName(e.target.value)}
+                onBlur={() => {
+                  if (editedDishName !== (selectedMemory.dish_name || '')) {
+                    saveMemoryChanges(editedTags, editedNote, editedDishName);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    (e.target as HTMLInputElement).blur();
+                  }
+                }}
+                placeholder="Add dish name..."
+                style={{
                   margin: 0,
                   color: '#fff',
                   fontSize: '18px',
                   fontWeight: 700,
-                }}>
-                  {selectedMemory.dish_name}
-                </p>
-              )}
+                  background: 'transparent',
+                  border: 'none',
+                  outline: 'none',
+                  padding: 0,
+                  width: '100%',
+                  fontFamily: 'inherit',
+                }}
+              />
               <p style={{
                 margin: '4px 0 0',
                 color: 'rgba(255,255,255,0.5)',
@@ -791,7 +819,15 @@ export default function FoodMemoryApp() {
           to { opacity: 1; }
         }
         .leaflet-popup-content-wrapper {
-          border-radius: 12px !important;
+          border-radius: 140px !important;
+          padding: 0 !important;
+          width: 260px !important;
+        }
+        .leaflet-popup-content {
+          margin: 0 !important;
+          width: 260px !important;
+          padding: 36px 20px 44px !important;
+          box-sizing: border-box;
         }
         .food-marker {
           background: none !important;

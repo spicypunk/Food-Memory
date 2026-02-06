@@ -22,8 +22,20 @@ body {
 }
 
 .leaflet-popup-content-wrapper {
-  border-radius: 12px !important;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.2) !important;
+  border-radius: 70px !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.12) !important;
+  padding: 0 !important;
+  overflow: hidden;
+  max-width: 200px !important;
+  width: 200px !important;
+}
+
+.leaflet-popup-content {
+  margin: 0 !important;
+  max-width: 200px !important;
+  width: 200px !important;
+  padding: 10px 10px 5px !important;
+  box-sizing: border-box;
 }
 
 .leaflet-popup-tip {

@@ -21,7 +21,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { friend_tags, personal_note } = body;
+    const { friend_tags, personal_note, dish_name } = body;
 
     const sql = neon(process.env.DATABASE_URL!);
 
@@ -29,7 +29,8 @@ export async function PATCH(
       UPDATE food_memories
       SET
         friend_tags = ${friend_tags ?? null},
-        personal_note = ${personal_note ?? null}
+        personal_note = ${personal_note ?? null},
+        dish_name = ${dish_name ?? null}
       WHERE id = ${memoryId}
       RETURNING
         id,
