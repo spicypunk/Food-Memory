@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
 import { put } from '@vercel/blob';
+import { auth } from '@clerk/nextjs/server';
 
 async function removeBackgroundWithRemoveBg(imageBuffer: ArrayBuffer): Promise<ArrayBuffer | null> {
   const types = ['auto', 'product']; // Try auto first, then product
@@ -223,6 +224,14 @@ async function findNearbyRestaurants(latitude: number, longitude: number): Promi
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('[Upload] Starting upload...');
+    const { userId } = await auth();
+    if (!userId) {
+      console.log('[Upload] Unauthorized - no userId');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    console.log('[Upload] User authenticated:', userId);
+
     const formData = await request.formData();
     const original = formData.get('original') as File;
     const latitude = parseFloat(formData.get('latitude') as string);
@@ -235,33 +244,42 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    console.log('[Upload] Image received, location:', latitude, longitude);
 
     // Get image buffer once for multiple uses
     const imageArrayBuffer = await original.arrayBuffer();
+    console.log('[Upload] Image buffer ready, size:', imageArrayBuffer.byteLength);
 
     // Step 1: Get restaurants and start background removal in parallel
+    console.log('[Upload] Starting parallel processing (restaurants + bg removal)...');
     const [restaurants, bgRemovedBuffer] = await Promise.all([
       findNearbyRestaurants(latitude, longitude),
       removeBackgroundWithRemoveBg(imageArrayBuffer),
     ]);
+    console.log('[Upload] Found', restaurants.length, 'restaurants, bg removed:', !!bgRemovedBuffer);
 
     // Step 2: Identify dish and match restaurant (needs restaurant list first)
+    console.log('[Upload] Identifying dish...');
     const { dishName, restaurantName, googleMapsUrl } = await identifyDishAndRestaurant(
       imageArrayBuffer,
       restaurants
     );
+    console.log('[Upload] Dish identified:', dishName, 'at', restaurantName);
 
     // Use background-removed image if available, otherwise fall back to original
     const croppedBuffer = bgRemovedBuffer || imageArrayBuffer;
     const croppedExtension = bgRemovedBuffer ? 'png' : 'jpg';
 
     // Upload both images to Vercel Blob
+    console.log('[Upload] Uploading to Vercel Blob...');
     const [originalBlob, croppedBlob] = await Promise.all([
       put(`originals/${Date.now()}-${original.name}`, original, { access: 'public' }),
       put(`cropped/${Date.now()}.${croppedExtension}`, Buffer.from(croppedBuffer), { access: 'public' }),
     ]);
+    console.log('[Upload] Blob upload complete');
 
     // Save to Neon database
+    console.log('[Upload] Saving to database...');
     const sql = neon(process.env.DATABASE_URL!);
     const result = await sql`
       INSERT INTO food_memories (
@@ -273,6 +291,7 @@ export async function POST(request: NextRequest) {
         restaurant_name,
         photo_taken_at,
         google_maps_url,
+        user_id,
         created_at
       ) VALUES (
         ${originalBlob.url},
@@ -283,10 +302,12 @@ export async function POST(request: NextRequest) {
         ${restaurantName},
         ${photoTakenAt ? new Date(photoTakenAt).toISOString() : null},
         ${googleMapsUrl},
+        ${userId},
         NOW()
       )
       RETURNING id, original_image_url, cropped_image_url, latitude, longitude, dish_name, restaurant_name, photo_taken_at, google_maps_url, created_at
     `;
+    console.log('[Upload] SUCCESS - Memory saved with id:', result[0].id);
 
     return NextResponse.json({
       ...result[0],
@@ -294,7 +315,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Upload error:', error);
+    console.error('[Upload] ERROR:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Upload failed' },
       { status: 500 }

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import exifr from 'exifr';
+import { UserButton } from '@clerk/nextjs';
 import 'leaflet/dist/leaflet.css';
 
 // Fix for default marker icons in Next.js
@@ -180,8 +181,15 @@ export default function FoodMemoryApp() {
   const [editedTags, setEditedTags] = useState<string[]>([]);
   const [editedNote, setEditedNote] = useState('');
   const [editedDishName, setEditedDishName] = useState('');
+  const [mapReady, setMapReady] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const markerClickedRef = useRef(false);
+
+  // Delay map rendering to prevent double-initialization
+  useEffect(() => {
+    setMapReady(true);
+    return () => setMapReady(false);
+  }, []);
 
   // Sync local state when selected memory changes
   useEffect(() => {
@@ -346,14 +354,19 @@ export default function FoodMemoryApp() {
         formData.append('photoTakenAt', exifData.DateTimeOriginal.toISOString());
       }
 
+      // Add timeout to prevent infinite loading (2 minutes max)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000);
+
       const res = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
-      });
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timeoutId));
 
       if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || 'Upload failed');
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Upload failed (${res.status})`);
       }
 
       const responseData = await res.json();
@@ -367,7 +380,11 @@ export default function FoodMemoryApp() {
       setShowRestaurantPicker(false);
 
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed');
+      if (err instanceof Error && err.name === 'AbortError') {
+        setError('Upload timed out. Please try again.');
+      } else {
+        setError(err instanceof Error ? err.message : 'Upload failed');
+      }
     } finally {
       setUploading(false);
       setUploadStatus('');
@@ -422,6 +439,7 @@ export default function FoodMemoryApp() {
           </div>
         </div>
 
+        <UserButton afterSignOutUrl="/sign-in" />
       </header>
 
       {/* Floating Add Button - hidden when memory detail sheet is open */}
@@ -512,41 +530,43 @@ export default function FoodMemoryApp() {
         bottom: 0,
         paddingTop: '72px',
       }}>
-        <MapContainer
-          center={mapCenter || defaultCenter}
-          zoom={13}
-          style={{ height: '100%', width: '100%' }}
-          zoomControl={false}
-        >
-          <TileLayer
-            url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-            attribution='&copy; <a href="https://carto.com/">CARTO</a>'
-          />
-          <MapController center={mapCenter} zoom={14} />
-          <MapClickHandler onMapClick={() => {
-            // Use setTimeout to let marker click handler run first
-            setTimeout(() => {
-              if (markerClickedRef.current) {
-                markerClickedRef.current = false;
-                return;
-              }
-              setSelectedMemory(null);
-            }, 0);
-          }} />
-          
-          {foodMemories.map((memory) => (
-            <FoodMarker
-              key={memory.id}
-              memory={memory}
-              isSelected={selectedMemory?.id === memory.id}
-              onSelect={() => {
-                markerClickedRef.current = true;
-                setSelectedMemory(prev => prev?.id === memory.id ? null : memory);
-              }}
-              onImageClick={(imageUrl) => setFullscreenImage(imageUrl)}
+        {mapReady && (
+          <MapContainer
+            center={mapCenter || defaultCenter}
+            zoom={13}
+            style={{ height: '100%', width: '100%' }}
+            zoomControl={false}
+          >
+            <TileLayer
+              url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+              attribution='&copy; <a href="https://carto.com/">CARTO</a>'
             />
-          ))}
-        </MapContainer>
+            <MapController center={mapCenter} zoom={14} />
+            <MapClickHandler onMapClick={() => {
+              // Use setTimeout to let marker click handler run first
+              setTimeout(() => {
+                if (markerClickedRef.current) {
+                  markerClickedRef.current = false;
+                  return;
+                }
+                setSelectedMemory(null);
+              }, 0);
+            }} />
+
+            {foodMemories.map((memory) => (
+              <FoodMarker
+                key={memory.id}
+                memory={memory}
+                isSelected={selectedMemory?.id === memory.id}
+                onSelect={() => {
+                  markerClickedRef.current = true;
+                  setSelectedMemory(prev => prev?.id === memory.id ? null : memory);
+                }}
+                onImageClick={(imageUrl) => setFullscreenImage(imageUrl)}
+              />
+            ))}
+          </MapContainer>
+        )}
       </div>
 
       {/* Upload status */}

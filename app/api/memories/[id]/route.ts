@@ -1,6 +1,7 @@
 // app/api/memories/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
+import { auth } from '@clerk/nextjs/server';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -35,6 +36,11 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { id } = await params;
     const memoryId = parseInt(id, 10);
 
@@ -49,6 +55,17 @@ export async function PATCH(
     const { friend_tags, personal_note, dish_name, restaurant_name } = body;
 
     const sql = neon(process.env.DATABASE_URL!);
+
+    // Verify ownership
+    const ownerCheck = await sql`
+      SELECT user_id FROM food_memories WHERE id = ${memoryId}
+    `;
+    if (ownerCheck.length === 0) {
+      return NextResponse.json({ error: 'Memory not found' }, { status: 404 });
+    }
+    if (ownerCheck[0].user_id !== userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     // If restaurant_name is being updated, look up new Google Maps URL
     if (restaurant_name !== undefined) {
