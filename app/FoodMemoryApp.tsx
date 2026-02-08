@@ -102,12 +102,12 @@ function FoodMarker({
   group,
   selectedMemoryId,
   onSelectMemory,
-  onImageClick
+  onOpenFullscreen
 }: {
   group: DishGroup;
   selectedMemoryId: number | null;
   onSelectMemory: (memory: FoodMemory | null) => void;
-  onImageClick: (imageUrl: string) => void;
+  onOpenFullscreen: (images: string[], initialIndex: number) => void;
 }) {
   const markerRef = useRef<L.Marker | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -207,7 +207,8 @@ function FoodMarker({
             alt="Food"
             onClick={(e) => {
               e.stopPropagation();
-              onImageClick(currentMemory.original_image_url);
+              const allImages = memories.map(m => m.original_image_url);
+              onOpenFullscreen(allImages, currentIndex);
             }}
             style={{
               width: '100%',
@@ -265,6 +266,142 @@ function FoodMarker({
 }
 
 
+// Fullscreen image viewer with swipe support and progress bar
+function FullscreenViewer({
+  images,
+  initialIndex,
+  onClose
+}: {
+  images: string[];
+  initialIndex: number;
+  onClose: () => void;
+}) {
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const touchStartX = useRef<number | null>(null);
+
+  const hasMultiple = images.length > 1;
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null) return;
+    const touchEndX = e.changedTouches[0].clientX;
+    const diff = touchStartX.current - touchEndX;
+
+    if (Math.abs(diff) > 50) {
+      if (diff > 0 && currentIndex < images.length - 1) {
+        setCurrentIndex(currentIndex + 1);
+      } else if (diff < 0 && currentIndex > 0) {
+        setCurrentIndex(currentIndex - 1);
+      }
+    }
+    touchStartX.current = null;
+  };
+
+  return (
+    <div
+      className="fullscreen-swipe"
+      onClick={onClose}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 1001,
+        background: 'rgba(0, 0, 0, 0.95)',
+        display: 'flex',
+        flexDirection: 'column',
+        animation: 'fadeIn 0.2s ease',
+      }}
+    >
+      {/* Progress bar at top */}
+      {hasMultiple && (
+        <div style={{
+          position: 'absolute',
+          top: '50px',
+          left: '16px',
+          right: '16px',
+          display: 'flex',
+          gap: '4px',
+          zIndex: 10,
+        }}>
+          {images.map((_, idx) => (
+            <div
+              key={idx}
+              onClick={(e) => {
+                e.stopPropagation();
+                setCurrentIndex(idx);
+              }}
+              style={{
+                flex: 1,
+                height: '3px',
+                borderRadius: '2px',
+                background: idx === currentIndex
+                  ? 'rgba(255, 255, 255, 0.9)'
+                  : 'rgba(255, 255, 255, 0.3)',
+                cursor: 'pointer',
+                transition: 'background 0.2s ease',
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Close button */}
+      <button
+        onClick={onClose}
+        style={{
+          position: 'absolute',
+          top: '50px',
+          right: '16px',
+          width: '44px',
+          height: '44px',
+          marginTop: hasMultiple ? '20px' : '0',
+          borderRadius: '50%',
+          background: 'rgba(60, 60, 60, 0.8)',
+          border: 'none',
+          color: '#fff',
+          fontSize: '24px',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10,
+        }}
+      >
+        ×
+      </button>
+
+      {/* Image container */}
+      <div style={{
+        flex: 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '16px',
+      }}>
+        <img
+          src={images[currentIndex]}
+          alt="Full size"
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            maxWidth: '100%',
+            maxHeight: '100%',
+            objectFit: 'contain',
+            borderRadius: '8px',
+            userSelect: 'none',
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function FoodMemoryApp() {
   const [foodMemories, setFoodMemories] = useState<FoodMemory[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -273,7 +410,7 @@ export default function FoodMemoryApp() {
   const [mapCenter, setMapCenter] = useState<[number, number] | null>(null);
   const [selectedMemory, setSelectedMemory] = useState<FoodMemory | null>(null);
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
-  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
+  const [fullscreenData, setFullscreenData] = useState<{ images: string[]; initialIndex: number } | null>(null);
   const [pendingMemory, setPendingMemory] = useState<FoodMemory | null>(null);
   const [pendingDishName, setPendingDishName] = useState('');
   const [pendingRestaurantName, setPendingRestaurantName] = useState('');
@@ -436,13 +573,13 @@ export default function FoodMemoryApp() {
   // Close fullscreen on Escape key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && fullscreenImage) {
-        setFullscreenImage(null);
+      if (e.key === 'Escape' && fullscreenData) {
+        setFullscreenData(null);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [fullscreenImage]);
+  }, [fullscreenData]);
 
   const fetchMemories = async () => {
     try {
@@ -686,7 +823,7 @@ export default function FoodMemoryApp() {
                 markerClickedRef.current = true;
                 setSelectedMemory(memory);
               }}
-              onImageClick={(imageUrl) => setFullscreenImage(imageUrl)}
+              onOpenFullscreen={(images, initialIndex) => setFullscreenData({ images, initialIndex })}
             />
           ))}
         </MapContainer>
@@ -1142,57 +1279,13 @@ export default function FoodMemoryApp() {
         </div>
       )}
 
-      {/* Fullscreen image viewer */}
-      {fullscreenImage && (
-        <div
-          onClick={() => setFullscreenImage(null)}
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            zIndex: 1001,
-            background: 'rgba(0, 0, 0, 0.95)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            animation: 'fadeIn 0.2s ease',
-          }}
-        >
-          <button
-            onClick={() => setFullscreenImage(null)}
-            style={{
-              position: 'absolute',
-              top: '16px',
-              right: '16px',
-              width: '40px',
-              height: '40px',
-              borderRadius: '50%',
-              background: 'rgba(255, 255, 255, 0.1)',
-              border: 'none',
-              color: '#fff',
-              fontSize: '24px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            ×
-          </button>
-          <img
-            src={fullscreenImage}
-            alt="Full size"
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              maxWidth: '95%',
-              maxHeight: '95%',
-              objectFit: 'contain',
-              borderRadius: '8px',
-            }}
-          />
-        </div>
+      {/* Fullscreen image viewer with swipe */}
+      {fullscreenData && (
+        <FullscreenViewer
+          images={fullscreenData.images}
+          initialIndex={fullscreenData.initialIndex}
+          onClose={() => setFullscreenData(null)}
+        />
       )}
 
       {/* CSS animations */}

@@ -53,6 +53,12 @@ body {
   touch-action: pan-y;
 }
 
+/* Fullscreen viewer swipe */
+.fullscreen-swipe {
+  user-select: none;
+  touch-action: pan-x;
+}
+
 /* Hide default attribution on mobile for cleaner look */
 @media (max-width: 640px) {
   .leaflet-control-attribution {
