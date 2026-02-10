@@ -278,32 +278,78 @@ function FullscreenViewer({
 }) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
 
   const hasMultiple = images.length > 1;
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartX.current === null) return;
-    const touchEndX = e.changedTouches[0].clientX;
-    const diff = touchStartX.current - touchEndX;
+    if (touchStartX.current === null || touchStartY.current === null) return;
 
-    if (Math.abs(diff) > 50) {
-      if (diff > 0 && currentIndex < images.length - 1) {
+    const touchEndX = e.changedTouches[0].clientX;
+    const touchEndY = e.changedTouches[0].clientY;
+    const diffX = touchStartX.current - touchEndX;
+    const diffY = touchStartY.current - touchEndY;
+
+    // Check if it's a swipe (moved more than 50px horizontally)
+    if (Math.abs(diffX) > 50) {
+      if (diffX > 0 && currentIndex < images.length - 1) {
         setCurrentIndex(currentIndex + 1);
-      } else if (diff < 0 && currentIndex > 0) {
+      } else if (diffX < 0 && currentIndex > 0) {
         setCurrentIndex(currentIndex - 1);
       }
     }
+    // Check if it's a tap (minimal movement)
+    else if (Math.abs(diffX) < 10 && Math.abs(diffY) < 10 && hasMultiple) {
+      const screenWidth = window.innerWidth;
+      const tapX = touchEndX;
+
+      // Tap on left third → previous
+      if (tapX < screenWidth / 3 && currentIndex > 0) {
+        setCurrentIndex(currentIndex - 1);
+      }
+      // Tap on right third → next
+      else if (tapX > (screenWidth * 2) / 3 && currentIndex < images.length - 1) {
+        setCurrentIndex(currentIndex + 1);
+      }
+    }
+
     touchStartX.current = null;
+    touchStartY.current = null;
+  };
+
+  // Handle click for desktop (left/right navigation)
+  const handleClick = (e: React.MouseEvent) => {
+    if (!hasMultiple) {
+      onClose();
+      return;
+    }
+
+    const screenWidth = window.innerWidth;
+    const clickX = e.clientX;
+
+    // Click on left third → previous
+    if (clickX < screenWidth / 3 && currentIndex > 0) {
+      setCurrentIndex(currentIndex - 1);
+    }
+    // Click on right third → next
+    else if (clickX > (screenWidth * 2) / 3 && currentIndex < images.length - 1) {
+      setCurrentIndex(currentIndex + 1);
+    }
+    // Click on middle → close
+    else if (clickX >= screenWidth / 3 && clickX <= (screenWidth * 2) / 3) {
+      onClose();
+    }
   };
 
   return (
     <div
       className="fullscreen-swipe"
-      onClick={onClose}
+      onClick={handleClick}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       style={{
@@ -354,7 +400,10 @@ function FullscreenViewer({
 
       {/* Close button */}
       <button
-        onClick={onClose}
+        onClick={(e) => {
+          e.stopPropagation();
+          onClose();
+        }}
         style={{
           position: 'absolute',
           top: '50px',
@@ -384,11 +433,11 @@ function FullscreenViewer({
         alignItems: 'center',
         justifyContent: 'center',
         padding: '16px',
+        pointerEvents: 'none',
       }}>
         <img
           src={images[currentIndex]}
           alt="Full size"
-          onClick={(e) => e.stopPropagation()}
           style={{
             maxWidth: '100%',
             maxHeight: '100%',
