@@ -426,14 +426,38 @@ function FullscreenViewer({
         ×
       </button>
 
-      {/* Image container */}
+      {/* Blurred background image */}
+      <div style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        overflow: 'hidden',
+        zIndex: 0,
+      }}>
+        <img
+          src={images[currentIndex]}
+          alt=""
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            filter: 'blur(30px) brightness(0.6)',
+            transform: 'scale(1.1)',
+          }}
+        />
+      </div>
+
+      {/* Main image container */}
       <div style={{
         flex: 1,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '16px',
         pointerEvents: 'none',
+        zIndex: 1,
+        minHeight: 0,
       }}>
         <img
           src={images[currentIndex]}
@@ -442,7 +466,6 @@ function FullscreenViewer({
             maxWidth: '100%',
             maxHeight: '100%',
             objectFit: 'contain',
-            borderRadius: '8px',
             userSelect: 'none',
           }}
         />
