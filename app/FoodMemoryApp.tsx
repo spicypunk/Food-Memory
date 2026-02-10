@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { UserButton } from '@clerk/nextjs';
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import exifr from 'exifr';
@@ -774,6 +775,7 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
           </div>
         </div>
 
+        {!readOnly && <UserButton />}
       </header>
 
       {/* Floating Add Button - hidden when memory detail sheet is open or readOnly */}

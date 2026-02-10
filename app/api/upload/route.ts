@@ -1,5 +1,6 @@
 // app/api/upload/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 import { neon } from '@neondatabase/serverless';
 import { put } from '@vercel/blob';
 
@@ -222,6 +223,11 @@ async function findNearbyRestaurants(latitude: number, longitude: number): Promi
 }
 
 export async function POST(request: NextRequest) {
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const formData = await request.formData();
     const original = formData.get('original') as File;

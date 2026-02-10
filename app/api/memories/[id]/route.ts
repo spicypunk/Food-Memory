@@ -1,5 +1,6 @@
 // app/api/memories/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 import { neon } from '@neondatabase/serverless';
 
 // Disable caching for this route
@@ -34,6 +35,11 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { id } = await params;
     const memoryId = parseInt(id, 10);
