@@ -402,7 +402,7 @@ function FullscreenViewer({
   );
 }
 
-export default function FoodMemoryApp() {
+export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
   const [foodMemories, setFoodMemories] = useState<FoodMemory[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string>('');
@@ -704,8 +704,8 @@ export default function FoodMemoryApp() {
 
       </header>
 
-      {/* Floating Add Button - hidden when memory detail sheet is open */}
-      {!selectedMemory && (
+      {/* Floating Add Button - hidden when memory detail sheet is open or readOnly */}
+      {!readOnly && !selectedMemory && (
         <label style={{
           position: 'fixed',
           bottom: '24px',
@@ -830,7 +830,7 @@ export default function FoodMemoryApp() {
       </div>
 
       {/* Upload status */}
-      {uploading && uploadStatus && (
+      {!readOnly && uploading && uploadStatus && (
         <div style={{
           position: 'fixed',
           bottom: '88px',
@@ -889,34 +889,45 @@ export default function FoodMemoryApp() {
               }}
             />
             <div onClick={(e) => e.stopPropagation()}>
-              <input
-                type="text"
-                value={editedDishName}
-                onChange={(e) => setEditedDishName(e.target.value)}
-                onBlur={() => {
-                  if (editedDishName !== (selectedMemory.dish_name || '')) {
-                    saveMemoryChanges(editedTags, editedNote, editedDishName);
-                  }
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    (e.target as HTMLInputElement).blur();
-                  }
-                }}
-                placeholder="Add dish name..."
-                style={{
+              {readOnly ? (
+                <span style={{
                   margin: 0,
                   color: '#fff',
                   fontSize: '18px',
                   fontWeight: 700,
-                  background: 'transparent',
-                  border: 'none',
-                  outline: 'none',
-                  padding: 0,
-                  width: '100%',
-                  fontFamily: 'inherit',
-                }}
-              />
+                }}>
+                  {selectedMemory.dish_name || ''}
+                </span>
+              ) : (
+                <input
+                  type="text"
+                  value={editedDishName}
+                  onChange={(e) => setEditedDishName(e.target.value)}
+                  onBlur={() => {
+                    if (editedDishName !== (selectedMemory.dish_name || '')) {
+                      saveMemoryChanges(editedTags, editedNote, editedDishName);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      (e.target as HTMLInputElement).blur();
+                    }
+                  }}
+                  placeholder="Add dish name..."
+                  style={{
+                    margin: 0,
+                    color: '#fff',
+                    fontSize: '18px',
+                    fontWeight: 700,
+                    background: 'transparent',
+                    border: 'none',
+                    outline: 'none',
+                    padding: 0,
+                    width: '100%',
+                    fontFamily: 'inherit',
+                  }}
+                />
+              )}
               <p style={{
                 margin: '4px 0 0',
                 color: 'rgba(255,255,255,0.5)',
@@ -1001,26 +1012,28 @@ export default function FoodMemoryApp() {
                       {tag.charAt(0).toUpperCase()}
                     </span>
                     {tag}
-                    <button
-                      onClick={() => handleRemoveTag(tag)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#9A8AAA',
-                        cursor: 'pointer',
-                        padding: 0,
-                        marginLeft: '4px',
-                        fontSize: '16px',
-                        lineHeight: 1,
-                      }}
-                    >
-                      ×
-                    </button>
+                    {!readOnly && (
+                      <button
+                        onClick={() => handleRemoveTag(tag)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#9A8AAA',
+                          cursor: 'pointer',
+                          padding: 0,
+                          marginLeft: '4px',
+                          fontSize: '16px',
+                          lineHeight: 1,
+                        }}
+                      >
+                        ×
+                      </button>
+                    )}
                   </span>
                 ))}
 
                 {/* "+ Add name" inline input chip */}
-                <span style={{
+                {!readOnly && <span style={{
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '6px',
@@ -1059,7 +1072,7 @@ export default function FoodMemoryApp() {
                       width: '70px',
                     }}
                   />
-                </span>
+                </span>}
               </div>
 
               {/* Personal note section - borderless */}
@@ -1069,24 +1082,34 @@ export default function FoodMemoryApp() {
                 gap: '8px',
               }}>
                 <span style={{ fontSize: '13px' }}>✨</span>
-                <textarea
-                  value={editedNote}
-                  onChange={(e) => setEditedNote(e.target.value)}
-                  onBlur={handleNoteBlur}
-                  placeholder="Add a personal note..."
-                  style={{
+                {readOnly ? (
+                  <span style={{
                     flex: 1,
-                    background: 'transparent',
-                    border: 'none',
                     color: editedNote ? '#fff' : 'rgba(255,255,255,0.4)',
                     fontSize: '14px',
-                    outline: 'none',
-                    resize: 'none',
-                    minHeight: '20px',
-                    fontFamily: 'inherit',
-                    padding: 0,
-                  }}
-                />
+                  }}>
+                    {editedNote || ''}
+                  </span>
+                ) : (
+                  <textarea
+                    value={editedNote}
+                    onChange={(e) => setEditedNote(e.target.value)}
+                    onBlur={handleNoteBlur}
+                    placeholder="Add a personal note..."
+                    style={{
+                      flex: 1,
+                      background: 'transparent',
+                      border: 'none',
+                      color: editedNote ? '#fff' : 'rgba(255,255,255,0.4)',
+                      fontSize: '14px',
+                      outline: 'none',
+                      resize: 'none',
+                      minHeight: '20px',
+                      fontFamily: 'inherit',
+                      padding: 0,
+                    }}
+                  />
+                )}
               </div>
             </div>
           )}
@@ -1094,7 +1117,7 @@ export default function FoodMemoryApp() {
       )}
 
       {/* Upload confirmation modal */}
-      {pendingMemory && (
+      {!readOnly && pendingMemory && (
         <div style={{
           position: 'fixed',
           top: 0,
