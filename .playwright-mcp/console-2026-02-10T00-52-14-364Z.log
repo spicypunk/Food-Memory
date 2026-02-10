@@ -3332,3 +3332,6 @@ Require stack:
     at <unknown> (file:///Users/beth/for-pro-4-month/food-memory/node_modules/next/dist/server/load-components.js:70:65)
     at async loadComponentsImpl (file:///Users/beth/for-pro-4-month/food-memory/node_modules/next/dist/server/load-components.js:69:33)
     at async DevServer.findPageComponentsImpl (file:///Users/beth/for-pro-4-month/food-memory/node_modules/next/dist/server/next-server.js:675:36)
+[ 1973761ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3000/_next/static/webpack/81b494e032b0d41a.webpack.hot-update.json:0
+[ 1973761ms] [WARNING] [Fast Refresh] performing full reload because your application had an unrecoverable error @ webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/hot-dev-client.js:299
+[ 1973861ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3000/_next/static/chunks/app/share/page.js:0

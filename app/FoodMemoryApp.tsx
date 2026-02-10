@@ -763,14 +763,14 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
               color: '#fff',
               letterSpacing: '-0.02em',
             }}>
-              Food Memory
+              Tastory
             </h1>
             <p style={{
               margin: 0,
               fontSize: '12px',
               color: 'rgba(255,255,255,0.5)',
             }}>
-              {foodMemories.length} memories mapped
+              {foodMemories.length} tastes mapped
             </p>
           </div>
         </div>

@@ -9,7 +9,7 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: 'Food Memory',
+  title: 'Tastory',
   description: 'Map your food memories around the world',
   viewport: 'width=device-width, initial-scale=1, maximum-scale=1',
 };
