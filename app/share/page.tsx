@@ -1,8 +1,8 @@
-'use client';
+import dynamicImport from 'next/dynamic';
 
-import dynamic from 'next/dynamic';
+export const dynamic = 'force-dynamic';
 
-const FoodMemoryApp = dynamic(() => import('../FoodMemoryApp'), {
+const FoodMemoryApp = dynamicImport(() => import('../FoodMemoryApp'), {
   ssr: false,
   loading: () => (
     <div style={{

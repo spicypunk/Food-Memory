@@ -1,9 +1,9 @@
-'use client';
+import dynamicImport from 'next/dynamic';
 
-import dynamic from 'next/dynamic';
+export const dynamic = 'force-dynamic';
 
 // Leaflet must be loaded client-side only (no SSR)
-const FoodMemoryApp = dynamic(() => import('./FoodMemoryApp'), {
+const FoodMemoryApp = dynamicImport(() => import('./FoodMemoryApp'), {
   ssr: false,
   loading: () => (
     <div style={{

@@ -3,6 +3,8 @@ import { ClerkProvider } from '@clerk/nextjs';
 import { DM_Sans } from 'next/font/google';
 import './globals.css';
 
+export const dynamic = 'force-dynamic';
+
 const dmSans = DM_Sans({ 
   subsets: ['latin'],
   weight: ['400', '500', '600', '700'],
