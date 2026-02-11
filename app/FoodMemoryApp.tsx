@@ -484,6 +484,7 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
   const [selectedMemory, setSelectedMemory] = useState<FoodMemory | null>(null);
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
   const [fullscreenData, setFullscreenData] = useState<{ images: string[]; initialIndex: number } | null>(null);
+  const [viewMode, setViewMode] = useState<'map' | 'list'>('map');
   const [pendingMemory, setPendingMemory] = useState<FoodMemory | null>(null);
   const [pendingDishName, setPendingDishName] = useState('');
   const [pendingRestaurantName, setPendingRestaurantName] = useState('');
@@ -493,8 +494,17 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
   const [editedTags, setEditedTags] = useState<string[]>([]);
   const [editedNote, setEditedNote] = useState('');
   const [editedDishName, setEditedDishName] = useState('');
+  const [isDesktop, setIsDesktop] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const markerClickedRef = useRef(false);
+
+  // Responsive breakpoint: desktop shows list+map side by side
+  useEffect(() => {
+    const check = () => setIsDesktop(window.innerWidth >= 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   // Group memories by restaurant name + location (within 50m)
   const dishGroups = useMemo<DishGroup[]>(() => {
@@ -535,6 +545,15 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
 
     return groups;
   }, [foodMemories]);
+
+  // Sort groups by most recent memory date (descending) for list view
+  const sortedDishGroups = useMemo(() => {
+    return [...dishGroups].sort((a, b) => {
+      const aDate = Math.max(...a.memories.map(m => new Date(m.photo_taken_at || m.created_at).getTime()));
+      const bDate = Math.max(...b.memories.map(m => new Date(m.photo_taken_at || m.created_at).getTime()));
+      return bDate - aDate;
+    });
+  }, [dishGroups]);
 
   // Sync local state when selected memory changes
   useEffect(() => {
@@ -653,6 +672,13 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [fullscreenData]);
+
+  // Fly to selected memory when switching to map view
+  useEffect(() => {
+    if (viewMode === 'map' && selectedMemory) {
+      setMapCenter([selectedMemory.latitude, selectedMemory.longitude]);
+    }
+  }, [viewMode]);
 
   const fetchMemories = async () => {
     try {
@@ -775,6 +801,63 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
           </div>
         </div>
 
+        {/* Map / List toggle — mobile only */}
+        {!isDesktop && (
+          <div style={{
+            display: 'flex',
+            background: 'rgba(255,255,255,0.1)',
+            borderRadius: '10px',
+            padding: '3px',
+            gap: '2px',
+          }}>
+            <button
+              onClick={() => setViewMode('map')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '36px',
+                height: '32px',
+                borderRadius: '8px',
+                border: 'none',
+                background: viewMode === 'map' ? 'rgba(255,255,255,0.2)' : 'transparent',
+                cursor: 'pointer',
+                transition: 'background 0.15s ease',
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
+                <line x1="8" y1="2" x2="8" y2="18" />
+                <line x1="16" y1="6" x2="16" y2="22" />
+              </svg>
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '36px',
+                height: '32px',
+                borderRadius: '8px',
+                border: 'none',
+                background: viewMode === 'list' ? 'rgba(255,255,255,0.2)' : 'transparent',
+                cursor: 'pointer',
+                transition: 'background 0.15s ease',
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="8" y1="6" x2="21" y2="6" />
+                <line x1="8" y1="12" x2="21" y2="12" />
+                <line x1="8" y1="18" x2="21" y2="18" />
+                <line x1="3" y1="6" x2="3.01" y2="6" />
+                <line x1="3" y1="12" x2="3.01" y2="12" />
+                <line x1="3" y1="18" x2="3.01" y2="18" />
+              </svg>
+            </button>
+          </div>
+        )}
+
         {!readOnly && <UserButton />}
       </header>
 
@@ -861,10 +944,11 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
       <div style={{
         position: 'fixed',
         top: 0,
-        left: 0,
+        left: isDesktop ? '380px' : 0,
         right: 0,
         bottom: 0,
         paddingTop: '72px',
+        display: isDesktop ? 'block' : (viewMode === 'map' ? 'block' : 'none'),
       }}>
         <MapContainer
           center={mapCenter || defaultCenter}
@@ -903,6 +987,177 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
         </MapContainer>
       </div>
 
+      {/* List view */}
+      {(isDesktop || viewMode === 'list') && (
+        <div style={{
+          position: 'fixed',
+          top: '72px',
+          left: 0,
+          right: isDesktop ? 'auto' : 0,
+          width: isDesktop ? '380px' : undefined,
+          bottom: 0,
+          overflowY: 'auto',
+          padding: '16px',
+          paddingBottom: selectedMemory ? '180px' : '24px',
+          WebkitOverflowScrolling: 'touch' as any,
+          borderRight: isDesktop ? '1px solid #e0e0e0' : undefined,
+          zIndex: isDesktop ? 500 : undefined,
+          background: isDesktop ? '#f2f2f2' : undefined,
+        }}>
+          {sortedDishGroups.map((group) => (
+            <div key={group.key} style={{ marginBottom: '24px' }}>
+              {/* Section header */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                marginBottom: '12px',
+                padding: '0 4px',
+              }}>
+                <span style={{ fontSize: '14px' }}>📍</span>
+                <span style={{
+                  color: isDesktop ? '#000' : '#fff',
+                  fontSize: '15px',
+                  fontWeight: 600,
+                }}>
+                  {group.restaurant_name || 'Unknown spot'}
+                </span>
+                <span style={{
+                  color: isDesktop ? '#999' : 'rgba(255,255,255,0.4)',
+                  fontSize: '13px',
+                }}>
+                  {group.memories.length} {group.memories.length === 1 ? 'dish' : 'dishes'}
+                </span>
+              </div>
+
+              {/* Dish cards */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {group.memories.map((memory) => (
+                  <div
+                    key={memory.id}
+                    onClick={() => {
+                      if (selectedMemory?.id === memory.id) {
+                        setSelectedMemory(null);
+                      } else {
+                        setSelectedMemory(memory);
+                        if (isDesktop) {
+                          setMapCenter([memory.latitude, memory.longitude]);
+                        }
+                      }
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      padding: '12px',
+                      background: isDesktop
+                        ? (selectedMemory?.id === memory.id ? '#e8e8e8' : '#fff')
+                        : (selectedMemory?.id === memory.id ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)'),
+                      borderRadius: isDesktop ? '12px' : '16px',
+                      border: isDesktop
+                        ? (selectedMemory?.id === memory.id ? '1px solid #ccc' : '1px solid transparent')
+                        : (selectedMemory?.id === memory.id ? '1px solid rgba(255,255,255,0.2)' : '1px solid transparent'),
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    {/* Thumbnail */}
+                    <img
+                      src={memory.cropped_image_url}
+                      alt={memory.dish_name || 'Food'}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setFullscreenData({ images: [memory.original_image_url], initialIndex: 0 });
+                      }}
+                      style={{
+                        width: '56px',
+                        height: '56px',
+                        borderRadius: '12px',
+                        objectFit: 'cover',
+                        flexShrink: 0,
+                        cursor: 'pointer',
+                      }}
+                    />
+
+                    {/* Info */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{
+                        color: isDesktop ? '#000' : '#fff',
+                        fontSize: isDesktop ? '14px' : '15px',
+                        fontWeight: isDesktop ? 500 : 600,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}>
+                        {memory.dish_name || 'Untitled dish'}
+                      </div>
+                      <div style={{
+                        color: isDesktop ? '#999' : 'rgba(255,255,255,0.4)',
+                        fontSize: isDesktop ? '12px' : '13px',
+                        marginTop: '2px',
+                      }}>
+                        {new Date(memory.photo_taken_at || memory.created_at).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Friend tag avatars */}
+                    {memory.friend_tags && memory.friend_tags.length > 0 && (
+                      <div style={{ display: 'flex', flexShrink: 0 }}>
+                        {memory.friend_tags.slice(0, 3).map((tag, i) => (
+                          <span
+                            key={tag}
+                            style={{
+                              width: '28px',
+                              height: '28px',
+                              borderRadius: '50%',
+                              background: isDesktop ? '#e0e0e0' : '#DCD0FF',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '12px',
+                              fontWeight: 600,
+                              color: isDesktop ? '#555' : '#5A4A7A',
+                              marginLeft: i > 0 ? '-8px' : '0',
+                              border: isDesktop ? '2px solid #fff' : '2px solid rgba(26, 26, 46, 0.95)',
+                              zIndex: 3 - i,
+                              position: 'relative',
+                            }}
+                          >
+                            {tag.charAt(0).toUpperCase()}
+                          </span>
+                        ))}
+                        {memory.friend_tags.length > 3 && (
+                          <span style={{
+                            width: '28px',
+                            height: '28px',
+                            borderRadius: '50%',
+                            background: isDesktop ? '#f0f0f0' : 'rgba(255,255,255,0.15)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            color: isDesktop ? '#999' : 'rgba(255,255,255,0.6)',
+                            marginLeft: '-8px',
+                            border: isDesktop ? '2px solid #fff' : '2px solid rgba(26, 26, 46, 0.95)',
+                          }}>
+                            +{memory.friend_tags.length - 3}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Upload status */}
       {!readOnly && uploading && uploadStatus && (
         <div style={{
@@ -928,12 +1183,13 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
           style={{
             position: 'fixed',
             bottom: 0,
-            left: 0,
+            left: isDesktop ? '380px' : 0,
             right: 0,
             zIndex: 998,
-            background: 'rgba(26, 26, 46, 0.95)',
+            background: isDesktop ? 'rgba(255, 255, 255, 0.95)' : 'rgba(26, 26, 46, 0.95)',
             backdropFilter: 'blur(20px)',
-            borderRadius: '24px 24px 0 0',
+            borderRadius: isDesktop ? '0' : '24px 24px 0 0',
+            borderTop: isDesktop ? '1px solid #e0e0e0' : undefined,
             padding: '20px',
             animation: 'slideUp 0.3s ease',
             transition: 'max-height 0.3s ease',
@@ -941,14 +1197,16 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
             overflow: 'hidden',
           }}
         >
-          {/* Swipe handle */}
-          <div style={{
-            width: '36px',
-            height: '4px',
-            background: 'rgba(255,255,255,0.3)',
-            borderRadius: '2px',
-            margin: '0 auto 12px',
-          }} />
+          {/* Swipe handle — mobile only */}
+          {!isDesktop && (
+            <div style={{
+              width: '36px',
+              height: '4px',
+              background: 'rgba(255,255,255,0.3)',
+              borderRadius: '2px',
+              margin: '0 auto 12px',
+            }} />
+          )}
 
           <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
             <img
@@ -959,14 +1217,14 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
                 height: '80px',
                 objectFit: 'contain',
                 borderRadius: '16px',
-                background: 'rgba(255,255,255,0.05)',
+                background: isDesktop ? '#f5f5f5' : 'rgba(255,255,255,0.05)',
               }}
             />
             <div onClick={(e) => e.stopPropagation()}>
               {readOnly ? (
                 <span style={{
                   margin: 0,
-                  color: '#fff',
+                  color: isDesktop ? '#000' : '#fff',
                   fontSize: '18px',
                   fontWeight: 700,
                 }}>
@@ -990,7 +1248,7 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
                   placeholder="Add dish name..."
                   style={{
                     margin: 0,
-                    color: '#fff',
+                    color: isDesktop ? '#000' : '#fff',
                     fontSize: '18px',
                     fontWeight: 700,
                     background: 'transparent',
@@ -1004,7 +1262,7 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
               )}
               <p style={{
                 margin: '4px 0 0',
-                color: 'rgba(255,255,255,0.5)',
+                color: isDesktop ? '#999' : 'rgba(255,255,255,0.5)',
                 fontSize: '13px',
               }}>
                 {new Date(selectedMemory.photo_taken_at || selectedMemory.created_at).toLocaleDateString('en-US', {
@@ -1023,16 +1281,16 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
                       target="_blank"
                       rel="noopener noreferrer"
                       style={{
-                        color: 'rgba(255,255,255,0.4)',
+                        color: isDesktop ? '#666' : 'rgba(255,255,255,0.4)',
                         fontSize: '12px',
-                        textDecoration: 'none',
+                        textDecoration: 'underline',
                       }}
                     >
                       {selectedMemory.restaurant_name}
                     </a>
                   ) : (
                     <span style={{
-                      color: 'rgba(255,255,255,0.4)',
+                      color: isDesktop ? '#999' : 'rgba(255,255,255,0.4)',
                       fontSize: '12px',
                     }}>
                       {selectedMemory.restaurant_name}
@@ -1050,7 +1308,7 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
               style={{
                 marginTop: '16px',
                 paddingTop: '16px',
-                borderTop: '1px solid rgba(255,255,255,0.1)',
+                borderTop: isDesktop ? '1px solid #e0e0e0' : '1px solid rgba(255,255,255,0.1)',
               }}
             >
               {/* Friend tags section - contact chip style */}
@@ -1063,9 +1321,9 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
                       alignItems: 'center',
                       gap: '8px',
                       padding: '4px 16px 4px 4px',
-                      background: '#DCD0FF',
+                      background: isDesktop ? '#f0f0f0' : '#DCD0FF',
                       borderRadius: '24px',
-                      color: '#1a1a1a',
+                      color: isDesktop ? '#333' : '#1a1a1a',
                       fontSize: '14px',
                       fontWeight: 500,
                     }}
@@ -1075,13 +1333,13 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
                       width: '32px',
                       height: '32px',
                       borderRadius: '50%',
-                      background: '#D4C8E8',
+                      background: isDesktop ? '#ddd' : '#D4C8E8',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       fontSize: '14px',
                       fontWeight: 600,
-                      color: '#5A4A7A',
+                      color: isDesktop ? '#555' : '#5A4A7A',
                     }}>
                       {tag.charAt(0).toUpperCase()}
                     </span>
@@ -1092,7 +1350,7 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
                         style={{
                           background: 'none',
                           border: 'none',
-                          color: '#9A8AAA',
+                          color: isDesktop ? '#999' : '#9A8AAA',
                           cursor: 'pointer',
                           padding: 0,
                           marginLeft: '4px',
@@ -1112,19 +1370,19 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
                   alignItems: 'center',
                   gap: '6px',
                   padding: '4px 12px 4px 4px',
-                  border: '1px dashed rgba(255,255,255,0.3)',
+                  border: isDesktop ? '1px dashed #ccc' : '1px dashed rgba(255,255,255,0.3)',
                   borderRadius: '20px',
                 }}>
                   <span style={{
                     width: '28px',
                     height: '28px',
                     borderRadius: '50%',
-                    background: 'rgba(255,255,255,0.1)',
+                    background: isDesktop ? '#f0f0f0' : 'rgba(255,255,255,0.1)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontSize: '16px',
-                    color: 'rgba(255,255,255,0.5)',
+                    color: isDesktop ? '#999' : 'rgba(255,255,255,0.5)',
                   }}>+</span>
                   <input
                     type="text"
@@ -1140,7 +1398,7 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
                     style={{
                       background: 'transparent',
                       border: 'none',
-                      color: '#fff',
+                      color: isDesktop ? '#333' : '#fff',
                       fontSize: '14px',
                       outline: 'none',
                       width: '70px',
@@ -1159,7 +1417,7 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
                 {readOnly ? (
                   <span style={{
                     flex: 1,
-                    color: editedNote ? '#fff' : 'rgba(255,255,255,0.4)',
+                    color: isDesktop ? (editedNote ? '#333' : '#999') : (editedNote ? '#fff' : 'rgba(255,255,255,0.4)'),
                     fontSize: '14px',
                   }}>
                     {editedNote || ''}
@@ -1174,7 +1432,7 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
                       flex: 1,
                       background: 'transparent',
                       border: 'none',
-                      color: editedNote ? '#fff' : 'rgba(255,255,255,0.4)',
+                      color: isDesktop ? (editedNote ? '#333' : '#999') : (editedNote ? '#fff' : 'rgba(255,255,255,0.4)'),
                       fontSize: '14px',
                       outline: 'none',
                       resize: 'none',
