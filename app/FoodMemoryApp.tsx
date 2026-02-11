@@ -682,10 +682,10 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
 
   const fetchMemories = async () => {
     try {
-      const res = await fetch('/api/memories');
+      const res = await fetch('/api/memories', { cache: 'no-store' });
       const data = await res.json();
       setFoodMemories(data);
-      
+
       // Center map on most recent memory
       if (data.length > 0) {
         setMapCenter([data[0].latitude, data[0].longitude]);
