@@ -1249,19 +1249,18 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
             color: isDesktop ? '#999' : 'rgba(255,255,255,0.5)',
             fontSize: '13px',
           }}>
-            {selectedMemory.neighborhood && (
-              <>
-                <span style={{ marginRight: '2px' }}>📍</span>
-                {selectedMemory.neighborhood}
-                {' · '}
-              </>
-            )}
             {new Date(selectedMemory.photo_taken_at || selectedMemory.created_at).toLocaleDateString('en-US', {
               weekday: 'long',
               month: 'long',
               day: 'numeric',
               year: 'numeric',
             })}
+            {selectedMemory.neighborhood && (
+              <>
+                {'  ·  '}
+                {selectedMemory.neighborhood}
+              </>
+            )}
           </p>
 
           {/* Friend tags — show if tags exist, or in creator mode */}

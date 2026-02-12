@@ -5,6 +5,15 @@ import { neon } from '@neondatabase/serverless';
 
 export const dynamic = 'force-dynamic';
 
+const NEIGHBORHOOD_OVERRIDES: Record<string, string> = {
+  'Central Park West Historic District': 'Upper West Side',
+  'Flatiron District': 'Flatiron',
+};
+
+function normalizeNeighborhood(name: string): string {
+  return NEIGHBORHOOD_OVERRIDES[name] ?? name;
+}
+
 async function reverseGeocodeNeighborhood(latitude: number, longitude: number): Promise<string | null> {
   if (!process.env.GOOGLE_PLACES_API_KEY) {
     return null;
@@ -49,6 +58,18 @@ export async function POST() {
   try {
     const sql = neon(process.env.DATABASE_URL!);
 
+    // First, fix existing rows that have names we want to override
+    let renamed = 0;
+    for (const [oldName, newName] of Object.entries(NEIGHBORHOOD_OVERRIDES)) {
+      const result = await sql`
+        UPDATE food_memories
+        SET neighborhood = ${newName}
+        WHERE neighborhood = ${oldName}
+      `;
+      renamed += result.length ?? 0;
+    }
+
+    // Then, backfill rows that still have no neighborhood
     const rows = await sql`
       SELECT id, latitude, longitude
       FROM food_memories
@@ -61,7 +82,8 @@ export async function POST() {
     for (const row of rows) {
       const lat = Number(row.latitude);
       const lon = Number(row.longitude);
-      const neighborhood = await reverseGeocodeNeighborhood(lat, lon);
+      const raw = await reverseGeocodeNeighborhood(lat, lon);
+      const neighborhood = raw ? normalizeNeighborhood(raw) : null;
 
       if (neighborhood) {
         await sql`
@@ -75,7 +97,7 @@ export async function POST() {
       await delay(200);
     }
 
-    return NextResponse.json({ total: rows.length, updated });
+    return NextResponse.json({ total: rows.length, updated, renamed });
   } catch (error) {
     console.error('Backfill error:', error);
     return NextResponse.json(

@@ -185,6 +185,15 @@ Respond in JSON only: {"dish": "...", "restaurant": "..."}`,
   }
 }
 
+const NEIGHBORHOOD_OVERRIDES: Record<string, string> = {
+  'Central Park West Historic District': 'Upper West Side',
+  'Flatiron District': 'Flatiron',
+};
+
+function normalizeNeighborhood(name: string): string {
+  return NEIGHBORHOOD_OVERRIDES[name] ?? name;
+}
+
 async function reverseGeocodeNeighborhood(latitude: number, longitude: number): Promise<string | null> {
   if (!process.env.GOOGLE_PLACES_API_KEY) {
     return null;
@@ -281,11 +290,12 @@ export async function POST(request: NextRequest) {
     const imageArrayBuffer = await original.arrayBuffer();
 
     // Step 1: Get restaurants, neighborhood, and start background removal in parallel
-    const [restaurants, bgRemovedBuffer, neighborhood] = await Promise.all([
+    const [restaurants, bgRemovedBuffer, rawNeighborhood] = await Promise.all([
       findNearbyRestaurants(latitude, longitude),
       removeBackgroundWithRemoveBg(imageArrayBuffer),
       reverseGeocodeNeighborhood(latitude, longitude),
     ]);
+    const neighborhood = rawNeighborhood ? normalizeNeighborhood(rawNeighborhood) : null;
 
     // Step 2: Identify dish and match restaurant (needs restaurant list first)
     const { dishName, restaurantName, googleMapsUrl } = await identifyDishAndRestaurant(
