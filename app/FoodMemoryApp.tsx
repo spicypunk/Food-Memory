@@ -232,6 +232,44 @@ function FoodMarker({
             </p>
           )}
 
+          {group.restaurant_name && (
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '3px',
+                margin: '4px 0 0',
+              }}
+            >
+              <span style={{ fontSize: '13px', lineHeight: 1 }}>📍</span>
+              {currentMemory.google_maps_url ? (
+                <a
+                  href={currentMemory.google_maps_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    fontSize: '13px',
+                    color: '#888',
+                    textDecoration: 'underline',
+                    wordBreak: 'break-word',
+                  }}
+                >
+                  {group.restaurant_name}
+                </a>
+              ) : (
+                <span style={{
+                  fontSize: '13px',
+                  color: '#888',
+                  wordBreak: 'break-word',
+                }}>
+                  {group.restaurant_name}
+                </span>
+              )}
+            </div>
+          )}
+
           {/* Dot indicators */}
           {hasMultiple && (
             <div style={{
@@ -1179,7 +1217,6 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
       {/* Memory detail sheet */}
       {selectedMemory && (
         <div
-          onClick={() => setIsSheetExpanded(!isSheetExpanded)}
           style={{
             position: 'fixed',
             bottom: 0,
@@ -1190,11 +1227,8 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
             backdropFilter: 'blur(20px)',
             borderRadius: isDesktop ? '0' : '24px 24px 0 0',
             borderTop: isDesktop ? '1px solid #e0e0e0' : undefined,
-            padding: '20px',
+            padding: '16px 20px',
             animation: 'slideUp 0.3s ease',
-            transition: 'max-height 0.3s ease',
-            maxHeight: isSheetExpanded ? '70vh' : '160px',
-            overflow: 'hidden',
           }}
         >
           {/* Swipe handle — mobile only */}
@@ -1204,168 +1238,80 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
               height: '4px',
               background: 'rgba(255,255,255,0.3)',
               borderRadius: '2px',
-              margin: '0 auto 12px',
+              margin: '0 auto 10px',
             }} />
           )}
 
-          <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-            <img
-              src={selectedMemory.cropped_image_url}
-              alt="Food"
-              style={{
-                width: '80px',
-                height: '80px',
-                objectFit: 'contain',
-                borderRadius: '16px',
-                background: isDesktop ? '#f5f5f5' : 'rgba(255,255,255,0.05)',
-              }}
-            />
-            <div onClick={(e) => e.stopPropagation()}>
-              {readOnly ? (
-                <span style={{
-                  margin: 0,
-                  color: isDesktop ? '#000' : '#fff',
-                  fontSize: '18px',
-                  fontWeight: 700,
-                }}>
-                  {selectedMemory.dish_name || ''}
-                </span>
-              ) : (
-                <input
-                  type="text"
-                  value={editedDishName}
-                  onChange={(e) => setEditedDishName(e.target.value)}
-                  onBlur={() => {
-                    if (editedDishName !== (selectedMemory.dish_name || '')) {
-                      saveMemoryChanges(editedTags, editedNote, editedDishName);
-                    }
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      (e.target as HTMLInputElement).blur();
-                    }
-                  }}
-                  placeholder="Add dish name..."
+          {/* Date — always visible */}
+          <p style={{
+            margin: 0,
+            color: isDesktop ? '#999' : 'rgba(255,255,255,0.5)',
+            fontSize: '13px',
+          }}>
+            {new Date(selectedMemory.photo_taken_at || selectedMemory.created_at).toLocaleDateString('en-US', {
+              weekday: 'long',
+              month: 'long',
+              day: 'numeric',
+              year: 'numeric',
+            })}
+          </p>
+
+          {/* Friend tags — show if tags exist, or in creator mode */}
+          {(editedTags.length > 0 || !readOnly) && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '12px' }}>
+              {editedTags.map((tag) => (
+                <span
+                  key={tag}
                   style={{
-                    margin: 0,
-                    color: isDesktop ? '#000' : '#fff',
-                    fontSize: '18px',
-                    fontWeight: 700,
-                    background: 'transparent',
-                    border: 'none',
-                    outline: 'none',
-                    padding: 0,
-                    width: '100%',
-                    fontFamily: 'inherit',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '4px 16px 4px 4px',
+                    background: isDesktop ? '#f0f0f0' : '#DCD0FF',
+                    borderRadius: '24px',
+                    color: isDesktop ? '#333' : '#1a1a1a',
+                    fontSize: '14px',
+                    fontWeight: 500,
                   }}
-                />
-              )}
-              <p style={{
-                margin: '4px 0 0',
-                color: isDesktop ? '#999' : 'rgba(255,255,255,0.5)',
-                fontSize: '13px',
-              }}>
-                {new Date(selectedMemory.photo_taken_at || selectedMemory.created_at).toLocaleDateString('en-US', {
-                  weekday: 'long',
-                  month: 'long',
-                  day: 'numeric',
-                  year: 'numeric',
-                })}
-              </p>
-              {selectedMemory.restaurant_name && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
-                  <span style={{ fontSize: '12px' }}>📍</span>
-                  {selectedMemory.google_maps_url ? (
-                    <a
-                      href={selectedMemory.google_maps_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                >
+                  <span style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '50%',
+                    background: isDesktop ? '#ddd' : '#D4C8E8',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    color: isDesktop ? '#555' : '#5A4A7A',
+                  }}>
+                    {tag.charAt(0).toUpperCase()}
+                  </span>
+                  {tag}
+                  {!readOnly && (
+                    <button
+                      onClick={() => handleRemoveTag(tag)}
                       style={{
-                        color: isDesktop ? '#666' : 'rgba(255,255,255,0.4)',
-                        fontSize: '12px',
-                        textDecoration: 'underline',
+                        background: 'none',
+                        border: 'none',
+                        color: isDesktop ? '#999' : '#9A8AAA',
+                        cursor: 'pointer',
+                        padding: 0,
+                        marginLeft: '4px',
+                        fontSize: '16px',
+                        lineHeight: 1,
                       }}
                     >
-                      {selectedMemory.restaurant_name}
-                    </a>
-                  ) : (
-                    <span style={{
-                      color: isDesktop ? '#999' : 'rgba(255,255,255,0.4)',
-                      fontSize: '12px',
-                    }}>
-                      {selectedMemory.restaurant_name}
-                    </span>
+                      ×
+                    </button>
                   )}
-                </div>
-              )}
-            </div>
-          </div>
+                </span>
+              ))}
 
-          {/* Expanded content */}
-          {isSheetExpanded && (
-            <div
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                marginTop: '16px',
-                paddingTop: '16px',
-                borderTop: isDesktop ? '1px solid #e0e0e0' : '1px solid rgba(255,255,255,0.1)',
-              }}
-            >
-              {/* Friend tags section - contact chip style */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
-                {editedTags.map((tag) => (
-                  <span
-                    key={tag}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      padding: '4px 16px 4px 4px',
-                      background: isDesktop ? '#f0f0f0' : '#DCD0FF',
-                      borderRadius: '24px',
-                      color: isDesktop ? '#333' : '#1a1a1a',
-                      fontSize: '14px',
-                      fontWeight: 500,
-                    }}
-                  >
-                    {/* Avatar circle with initial */}
-                    <span style={{
-                      width: '32px',
-                      height: '32px',
-                      borderRadius: '50%',
-                      background: isDesktop ? '#ddd' : '#D4C8E8',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '14px',
-                      fontWeight: 600,
-                      color: isDesktop ? '#555' : '#5A4A7A',
-                    }}>
-                      {tag.charAt(0).toUpperCase()}
-                    </span>
-                    {tag}
-                    {!readOnly && (
-                      <button
-                        onClick={() => handleRemoveTag(tag)}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: isDesktop ? '#999' : '#9A8AAA',
-                          cursor: 'pointer',
-                          padding: 0,
-                          marginLeft: '4px',
-                          fontSize: '16px',
-                          lineHeight: 1,
-                        }}
-                      >
-                        ×
-                      </button>
-                    )}
-                  </span>
-                ))}
-
-                {/* "+ Add name" inline input chip */}
-                {!readOnly && <span style={{
+              {/* "+ Add name" inline input chip — creator only */}
+              {!readOnly && (
+                <span style={{
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '6px',
@@ -1404,45 +1350,48 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
                       width: '70px',
                     }}
                   />
-                </span>}
-              </div>
+                </span>
+              )}
+            </div>
+          )}
 
-              {/* Personal note section - borderless */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '8px',
-              }}>
-                <span style={{ fontSize: '13px' }}>✨</span>
-                {readOnly ? (
-                  <span style={{
+          {/* Personal note — show if note exists, or in creator mode */}
+          {(editedNote || !readOnly) && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '8px',
+              marginTop: '12px',
+            }}>
+              <span style={{ fontSize: '13px' }}>✨</span>
+              {readOnly ? (
+                <span style={{
+                  flex: 1,
+                  color: isDesktop ? '#333' : '#fff',
+                  fontSize: '14px',
+                }}>
+                  {editedNote}
+                </span>
+              ) : (
+                <textarea
+                  value={editedNote}
+                  onChange={(e) => setEditedNote(e.target.value)}
+                  onBlur={handleNoteBlur}
+                  placeholder="Add a personal note..."
+                  style={{
                     flex: 1,
+                    background: 'transparent',
+                    border: 'none',
                     color: isDesktop ? (editedNote ? '#333' : '#999') : (editedNote ? '#fff' : 'rgba(255,255,255,0.4)'),
                     fontSize: '14px',
-                  }}>
-                    {editedNote || ''}
-                  </span>
-                ) : (
-                  <textarea
-                    value={editedNote}
-                    onChange={(e) => setEditedNote(e.target.value)}
-                    onBlur={handleNoteBlur}
-                    placeholder="Add a personal note..."
-                    style={{
-                      flex: 1,
-                      background: 'transparent',
-                      border: 'none',
-                      color: isDesktop ? (editedNote ? '#333' : '#999') : (editedNote ? '#fff' : 'rgba(255,255,255,0.4)'),
-                      fontSize: '14px',
-                      outline: 'none',
-                      resize: 'none',
-                      minHeight: '20px',
-                      fontFamily: 'inherit',
-                      padding: 0,
-                    }}
-                  />
-                )}
-              </div>
+                    outline: 'none',
+                    resize: 'none',
+                    minHeight: '20px',
+                    fontFamily: 'inherit',
+                    padding: 0,
+                  }}
+                />
+              )}
             </div>
           )}
         </div>
