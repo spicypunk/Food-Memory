@@ -22,7 +22,10 @@ CREATE TABLE food_memories (
   personal_note TEXT,
 
   -- Google Maps link (added Feb 2026)
-  google_maps_url TEXT
+  google_maps_url TEXT,
+
+  -- Neighborhood (added Feb 2026)
+  neighborhood VARCHAR(255)
 );
 
 -- Migration for existing tables:
@@ -32,6 +35,7 @@ CREATE TABLE food_memories (
 -- ALTER TABLE food_memories ADD COLUMN friend_tags TEXT[];
 -- ALTER TABLE food_memories ADD COLUMN personal_note TEXT;
 -- ALTER TABLE food_memories ADD COLUMN google_maps_url TEXT;
+-- ALTER TABLE food_memories ADD COLUMN neighborhood VARCHAR(255);
 
 -- Index for faster geo queries if you want to add proximity search later
 CREATE INDEX idx_food_memories_location ON food_memories (latitude, longitude);

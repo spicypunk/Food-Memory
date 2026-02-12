@@ -28,6 +28,7 @@ interface FoodMemory {
   friend_tags: string[] | null;
   personal_note: string | null;
   google_maps_url: string | null;
+  neighborhood: string | null;
 }
 
 // Custom food icon for Leaflet markers
@@ -1242,12 +1243,19 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
             }} />
           )}
 
-          {/* Date — always visible */}
+          {/* Neighborhood + Date — always visible */}
           <p style={{
             margin: 0,
             color: isDesktop ? '#999' : 'rgba(255,255,255,0.5)',
             fontSize: '13px',
           }}>
+            {selectedMemory.neighborhood && (
+              <>
+                <span style={{ marginRight: '2px' }}>📍</span>
+                {selectedMemory.neighborhood}
+                {' · '}
+              </>
+            )}
             {new Date(selectedMemory.photo_taken_at || selectedMemory.created_at).toLocaleDateString('en-US', {
               weekday: 'long',
               month: 'long',

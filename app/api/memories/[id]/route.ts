@@ -90,7 +90,7 @@ export async function PATCH(
         RETURNING
           id, original_image_url, cropped_image_url, latitude, longitude,
           created_at, dish_name, restaurant_name, photo_taken_at,
-          friend_tags, personal_note, google_maps_url
+          friend_tags, personal_note, google_maps_url, neighborhood
       `;
 
       if (result.length === 0) {
@@ -114,7 +114,7 @@ export async function PATCH(
       RETURNING
         id, original_image_url, cropped_image_url, latitude, longitude,
         created_at, dish_name, restaurant_name, photo_taken_at,
-        friend_tags, personal_note, google_maps_url
+        friend_tags, personal_note, google_maps_url, neighborhood
     `;
 
     if (result.length === 0) {

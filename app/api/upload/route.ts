@@ -185,6 +185,41 @@ Respond in JSON only: {"dish": "...", "restaurant": "..."}`,
   }
 }
 
+async function reverseGeocodeNeighborhood(latitude: number, longitude: number): Promise<string | null> {
+  if (!process.env.GOOGLE_PLACES_API_KEY) {
+    return null;
+  }
+
+  try {
+    // Ask Google to only return neighborhood-level results
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&result_type=neighborhood&key=${process.env.GOOGLE_PLACES_API_KEY}`;
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      console.error('Geocoding API error:', await response.text());
+      return null;
+    }
+
+    const data = await response.json();
+
+    if (!data.results || data.results.length === 0) {
+      return null;
+    }
+
+    // First result is the most specific neighborhood match
+    for (const component of data.results[0].address_components || []) {
+      if ((component.types as string[]).includes('neighborhood')) {
+        return component.long_name;
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error reverse geocoding neighborhood:', error);
+    return null;
+  }
+}
+
 async function findNearbyRestaurants(latitude: number, longitude: number): Promise<{ name: string; place_id: string }[]> {
   if (!process.env.GOOGLE_PLACES_API_KEY) {
     console.log('GOOGLE_PLACES_API_KEY not set, skipping restaurant lookup');
@@ -245,10 +280,11 @@ export async function POST(request: NextRequest) {
     // Get image buffer once for multiple uses
     const imageArrayBuffer = await original.arrayBuffer();
 
-    // Step 1: Get restaurants and start background removal in parallel
-    const [restaurants, bgRemovedBuffer] = await Promise.all([
+    // Step 1: Get restaurants, neighborhood, and start background removal in parallel
+    const [restaurants, bgRemovedBuffer, neighborhood] = await Promise.all([
       findNearbyRestaurants(latitude, longitude),
       removeBackgroundWithRemoveBg(imageArrayBuffer),
+      reverseGeocodeNeighborhood(latitude, longitude),
     ]);
 
     // Step 2: Identify dish and match restaurant (needs restaurant list first)
@@ -279,6 +315,7 @@ export async function POST(request: NextRequest) {
         restaurant_name,
         photo_taken_at,
         google_maps_url,
+        neighborhood,
         created_at
       ) VALUES (
         ${originalBlob.url},
@@ -289,9 +326,10 @@ export async function POST(request: NextRequest) {
         ${restaurantName},
         ${photoTakenAt ? new Date(photoTakenAt).toISOString() : null},
         ${googleMapsUrl},
+        ${neighborhood},
         NOW()
       )
-      RETURNING id, original_image_url, cropped_image_url, latitude, longitude, dish_name, restaurant_name, photo_taken_at, google_maps_url, created_at
+      RETURNING id, original_image_url, cropped_image_url, latitude, longitude, dish_name, restaurant_name, photo_taken_at, google_maps_url, neighborhood, created_at
     `;
 
     return NextResponse.json({
