@@ -1065,7 +1065,7 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
                   color: isDesktop ? '#999' : 'rgba(255,255,255,0.4)',
                   fontSize: '13px',
                 }}>
-                  {group.memories.length} {group.memories.length === 1 ? 'dish' : 'dishes'}
+                  {group.memories[0]?.neighborhood || ''}
                 </span>
               </div>
 
