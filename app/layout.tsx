@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { ClerkProvider } from '@clerk/nextjs';
 import { DM_Sans } from 'next/font/google';
+import { Analytics } from '@vercel/analytics/react';
 import './globals.css';
 
 export const dynamic = 'force-dynamic';
@@ -24,7 +25,10 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="en">
-        <body className={dmSans.className}>{children}</body>
+        <body className={dmSans.className}>
+          {children}
+          <Analytics />
+        </body>
       </html>
     </ClerkProvider>
   );
