@@ -194,9 +194,9 @@ function normalizeNeighborhood(name: string): string {
   return NEIGHBORHOOD_OVERRIDES[name] ?? name;
 }
 
-async function reverseGeocodeNeighborhood(latitude: number, longitude: number): Promise<string | null> {
+async function reverseGeocodeNeighborhood(latitude: number, longitude: number): Promise<{ neighborhood: string | null; borough: string | null }> {
   if (!process.env.GOOGLE_PLACES_API_KEY) {
-    return null;
+    return { neighborhood: null, borough: null };
   }
 
   try {
@@ -206,26 +206,33 @@ async function reverseGeocodeNeighborhood(latitude: number, longitude: number): 
 
     if (!response.ok) {
       console.error('Geocoding API error:', await response.text());
-      return null;
+      return { neighborhood: null, borough: null };
     }
 
     const data = await response.json();
 
     if (!data.results || data.results.length === 0) {
-      return null;
+      return { neighborhood: null, borough: null };
     }
+
+    let neighborhood: string | null = null;
+    let borough: string | null = null;
 
     // First result is the most specific neighborhood match
     for (const component of data.results[0].address_components || []) {
-      if ((component.types as string[]).includes('neighborhood')) {
-        return component.long_name;
+      const types = component.types as string[];
+      if (types.includes('neighborhood')) {
+        neighborhood = component.long_name;
+      }
+      if (types.includes('sublocality_level_1') || types.includes('sublocality')) {
+        borough = component.long_name;
       }
     }
 
-    return null;
+    return { neighborhood, borough };
   } catch (error) {
     console.error('Error reverse geocoding neighborhood:', error);
-    return null;
+    return { neighborhood: null, borough: null };
   }
 }
 
@@ -289,13 +296,14 @@ export async function POST(request: NextRequest) {
     // Get image buffer once for multiple uses
     const imageArrayBuffer = await original.arrayBuffer();
 
-    // Step 1: Get restaurants, neighborhood, and start background removal in parallel
-    const [restaurants, bgRemovedBuffer, rawNeighborhood] = await Promise.all([
+    // Step 1: Get restaurants, neighborhood/borough, and start background removal in parallel
+    const [restaurants, bgRemovedBuffer, geocodeResult] = await Promise.all([
       findNearbyRestaurants(latitude, longitude),
       removeBackgroundWithRemoveBg(imageArrayBuffer),
       reverseGeocodeNeighborhood(latitude, longitude),
     ]);
-    const neighborhood = rawNeighborhood ? normalizeNeighborhood(rawNeighborhood) : null;
+    const neighborhood = geocodeResult.neighborhood ? normalizeNeighborhood(geocodeResult.neighborhood) : null;
+    const borough = geocodeResult.borough;
 
     // Step 2: Identify dish and match restaurant (needs restaurant list first)
     const { dishName, restaurantName, googleMapsUrl } = await identifyDishAndRestaurant(
@@ -326,6 +334,7 @@ export async function POST(request: NextRequest) {
         photo_taken_at,
         google_maps_url,
         neighborhood,
+        borough,
         created_at
       ) VALUES (
         ${originalBlob.url},
@@ -337,9 +346,10 @@ export async function POST(request: NextRequest) {
         ${photoTakenAt ? new Date(photoTakenAt).toISOString() : null},
         ${googleMapsUrl},
         ${neighborhood},
+        ${borough},
         NOW()
       )
-      RETURNING id, original_image_url, cropped_image_url, latitude, longitude, dish_name, restaurant_name, photo_taken_at, google_maps_url, neighborhood, created_at
+      RETURNING id, original_image_url, cropped_image_url, latitude, longitude, dish_name, restaurant_name, photo_taken_at, google_maps_url, neighborhood, borough, created_at
     `;
 
     return NextResponse.json({

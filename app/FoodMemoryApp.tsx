@@ -29,6 +29,7 @@ interface FoodMemory {
   personal_note: string | null;
   google_maps_url: string | null;
   neighborhood: string | null;
+  borough: string | null;
 }
 
 // Custom food icon for Leaflet markers
@@ -534,6 +535,7 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
   const [editedNote, setEditedNote] = useState('');
   const [editedDishName, setEditedDishName] = useState('');
   const [isDesktop, setIsDesktop] = useState(false);
+  const [collapsedBoroughs, setCollapsedBoroughs] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const markerClickedRef = useRef(false);
 
@@ -593,6 +595,23 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
       return bDate - aDate;
     });
   }, [dishGroups]);
+
+  // Group sorted dish groups by borough
+  const boroughGroups = useMemo(() => {
+    const groups: Record<string, { borough: string; dishGroups: DishGroup[]; dishCount: number }> = {};
+
+    for (const group of sortedDishGroups) {
+      const borough = group.memories[0]?.borough || 'Other';
+
+      if (!groups[borough]) {
+        groups[borough] = { borough, dishGroups: [], dishCount: 0 };
+      }
+      groups[borough].dishGroups.push(group);
+      groups[borough].dishCount += group.memories.length;
+    }
+
+    return Object.values(groups).sort((a, b) => b.dishCount - a.dishCount);
+  }, [sortedDishGroups]);
 
   // Sync local state when selected memory changes
   useEffect(() => {
@@ -1036,162 +1055,228 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
           width: isDesktop ? '380px' : undefined,
           bottom: 0,
           overflowY: 'auto',
-          padding: '16px',
+          padding: 0,
           paddingBottom: selectedMemory ? '180px' : '24px',
           WebkitOverflowScrolling: 'touch' as any,
           borderRight: isDesktop ? '1px solid #e0e0e0' : undefined,
           zIndex: isDesktop ? 500 : undefined,
           background: isDesktop ? '#f2f2f2' : undefined,
         }}>
-          {sortedDishGroups.map((group) => (
-            <div key={group.key} style={{ marginBottom: '24px' }}>
-              {/* Section header */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                marginBottom: '12px',
-                padding: '0 4px',
-              }}>
-                <span style={{ fontSize: '14px' }}>📍</span>
-                <span style={{
-                  color: isDesktop ? '#000' : '#fff',
-                  fontSize: '15px',
-                  fontWeight: 600,
-                }}>
-                  {group.restaurant_name || 'Unknown spot'}
-                </span>
+          {boroughGroups.map(({ borough, dishGroups: bGroups, dishCount }) => (
+            <div key={borough}>
+              {/* Sticky borough header */}
+              <div
+                onClick={() => {
+                  setCollapsedBoroughs(prev => {
+                    const next = new Set(prev);
+                    if (next.has(borough)) next.delete(borough);
+                    else next.add(borough);
+                    return next;
+                  });
+                }}
+                style={{
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 10,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '14px 16px',
+                  background: isDesktop ? '#f2f2f2' : 'rgba(26, 26, 46, 0.95)',
+                  backdropFilter: isDesktop ? undefined : 'blur(10px)',
+                  borderBottom: isDesktop ? '1px solid #e0e0e0' : '1px solid rgba(255,255,255,0.08)',
+                  borderTop: isDesktop ? '1px solid #e0e0e0' : '1px solid rgba(255,255,255,0.08)',
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                }}
+              >
                 <span style={{
                   color: isDesktop ? '#999' : 'rgba(255,255,255,0.4)',
                   fontSize: '13px',
+                  fontWeight: 700,
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
                 }}>
-                  {group.memories[0]?.neighborhood || ''}
+                  {borough}
                 </span>
-              </div>
-
-              {/* Dish cards */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {group.memories.map((memory) => (
-                  <div
-                    key={memory.id}
-                    onClick={() => {
-                      if (selectedMemory?.id === memory.id) {
-                        setSelectedMemory(null);
-                      } else {
-                        setSelectedMemory(memory);
-                        if (isDesktop) {
-                          setMapCenter([memory.latitude, memory.longitude]);
-                        }
-                      }
-                    }}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{
+                    color: isDesktop ? '#bbb' : 'rgba(255,255,255,0.3)',
+                    fontSize: '14px',
+                  }}>
+                    {dishCount} {dishCount === 1 ? 'dish' : 'dishes'}
+                  </span>
+                  <svg
+                    width="16" height="16" viewBox="0 0 24 24" fill="none"
+                    stroke={isDesktop ? '#bbb' : 'rgba(255,255,255,0.3)'}
+                    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      padding: '12px',
-                      background: isDesktop
-                        ? (selectedMemory?.id === memory.id ? '#e8e8e8' : '#fff')
-                        : (selectedMemory?.id === memory.id ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)'),
-                      borderRadius: isDesktop ? '12px' : '16px',
-                      border: isDesktop
-                        ? (selectedMemory?.id === memory.id ? '1px solid #ccc' : '1px solid transparent')
-                        : (selectedMemory?.id === memory.id ? '1px solid rgba(255,255,255,0.2)' : '1px solid transparent'),
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
+                      transform: collapsedBoroughs.has(borough) ? 'rotate(0deg)' : 'rotate(90deg)',
+                      transition: 'transform 0.2s ease',
                     }}
                   >
-                    {/* Thumbnail */}
-                    <img
-                      src={memory.cropped_image_url}
-                      alt={memory.dish_name || 'Food'}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setFullscreenData({ images: [memory.original_image_url], initialIndex: 0 });
-                      }}
-                      style={{
-                        width: '56px',
-                        height: '56px',
-                        borderRadius: '12px',
-                        objectFit: 'cover',
-                        flexShrink: 0,
-                        cursor: 'pointer',
-                      }}
-                    />
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </div>
+              </div>
 
-                    {/* Info */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
+              {/* Restaurant groups within this borough */}
+              {!collapsedBoroughs.has(borough) && (
+                <div style={{ padding: '8px 16px 16px' }}>
+                  {bGroups.map((group) => (
+                    <div key={group.key} style={{ marginBottom: '24px' }}>
+                      {/* Restaurant header */}
                       <div style={{
-                        color: isDesktop ? '#000' : '#fff',
-                        fontSize: isDesktop ? '14px' : '15px',
-                        fontWeight: isDesktop ? 500 : 600,
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        marginBottom: '12px',
+                        padding: '0 4px',
                       }}>
-                        {memory.dish_name || 'Untitled dish'}
+                        <span style={{ fontSize: '14px' }}>📍</span>
+                        <span style={{
+                          color: isDesktop ? '#000' : '#fff',
+                          fontSize: '15px',
+                          fontWeight: 600,
+                        }}>
+                          {group.restaurant_name || 'Unknown spot'}
+                        </span>
+                        <span style={{ flex: 1 }} />
+                        <span style={{
+                          color: isDesktop ? '#999' : 'rgba(255,255,255,0.4)',
+                          fontSize: '13px',
+                        }}>
+                          {group.memories[0]?.neighborhood || ''}
+                        </span>
                       </div>
-                      <div style={{
-                        color: isDesktop ? '#999' : 'rgba(255,255,255,0.4)',
-                        fontSize: isDesktop ? '12px' : '13px',
-                        marginTop: '2px',
-                      }}>
-                        {new Date(memory.photo_taken_at || memory.created_at).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                        })}
-                      </div>
-                    </div>
 
-                    {/* Friend tag avatars */}
-                    {memory.friend_tags && memory.friend_tags.length > 0 && (
-                      <div style={{ display: 'flex', flexShrink: 0 }}>
-                        {memory.friend_tags.slice(0, 3).map((tag, i) => (
-                          <span
-                            key={tag}
+                      {/* Dish cards */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {group.memories.map((memory) => (
+                          <div
+                            key={memory.id}
+                            onClick={() => {
+                              if (selectedMemory?.id === memory.id) {
+                                setSelectedMemory(null);
+                              } else {
+                                setSelectedMemory(memory);
+                                if (isDesktop) {
+                                  setMapCenter([memory.latitude, memory.longitude]);
+                                }
+                              }
+                            }}
                             style={{
-                              width: '28px',
-                              height: '28px',
-                              borderRadius: '50%',
-                              background: isDesktop ? '#e0e0e0' : '#DCD0FF',
                               display: 'flex',
                               alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: '12px',
-                              fontWeight: 600,
-                              color: isDesktop ? '#555' : '#5A4A7A',
-                              marginLeft: i > 0 ? '-8px' : '0',
-                              border: isDesktop ? '2px solid #fff' : '2px solid rgba(26, 26, 46, 0.95)',
-                              zIndex: 3 - i,
-                              position: 'relative',
+                              gap: '12px',
+                              padding: '12px',
+                              background: isDesktop
+                                ? (selectedMemory?.id === memory.id ? '#e8e8e8' : '#fff')
+                                : (selectedMemory?.id === memory.id ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)'),
+                              borderRadius: isDesktop ? '12px' : '16px',
+                              border: isDesktop
+                                ? (selectedMemory?.id === memory.id ? '1px solid #ccc' : '1px solid transparent')
+                                : (selectedMemory?.id === memory.id ? '1px solid rgba(255,255,255,0.2)' : '1px solid transparent'),
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease',
                             }}
                           >
-                            {tag.charAt(0).toUpperCase()}
-                          </span>
+                            {/* Thumbnail */}
+                            <img
+                              src={memory.cropped_image_url}
+                              alt={memory.dish_name || 'Food'}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setFullscreenData({ images: [memory.original_image_url], initialIndex: 0 });
+                              }}
+                              style={{
+                                width: '56px',
+                                height: '56px',
+                                borderRadius: '12px',
+                                objectFit: 'cover',
+                                flexShrink: 0,
+                                cursor: 'pointer',
+                              }}
+                            />
+
+                            {/* Info */}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{
+                                color: isDesktop ? '#000' : '#fff',
+                                fontSize: isDesktop ? '14px' : '15px',
+                                fontWeight: isDesktop ? 500 : 600,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                              }}>
+                                {memory.dish_name || 'Untitled dish'}
+                              </div>
+                              <div style={{
+                                color: isDesktop ? '#999' : 'rgba(255,255,255,0.4)',
+                                fontSize: isDesktop ? '12px' : '13px',
+                                marginTop: '2px',
+                              }}>
+                                {new Date(memory.photo_taken_at || memory.created_at).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric',
+                                })}
+                              </div>
+                            </div>
+
+                            {/* Friend tag avatars */}
+                            {memory.friend_tags && memory.friend_tags.length > 0 && (
+                              <div style={{ display: 'flex', flexShrink: 0 }}>
+                                {memory.friend_tags.slice(0, 3).map((tag, i) => (
+                                  <span
+                                    key={tag}
+                                    style={{
+                                      width: '28px',
+                                      height: '28px',
+                                      borderRadius: '50%',
+                                      background: isDesktop ? '#e0e0e0' : '#DCD0FF',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      fontSize: '12px',
+                                      fontWeight: 600,
+                                      color: isDesktop ? '#555' : '#5A4A7A',
+                                      marginLeft: i > 0 ? '-8px' : '0',
+                                      border: isDesktop ? '2px solid #fff' : '2px solid rgba(26, 26, 46, 0.95)',
+                                      zIndex: 3 - i,
+                                      position: 'relative',
+                                    }}
+                                  >
+                                    {tag.charAt(0).toUpperCase()}
+                                  </span>
+                                ))}
+                                {memory.friend_tags.length > 3 && (
+                                  <span style={{
+                                    width: '28px',
+                                    height: '28px',
+                                    borderRadius: '50%',
+                                    background: isDesktop ? '#f0f0f0' : 'rgba(255,255,255,0.15)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontSize: '11px',
+                                    fontWeight: 600,
+                                    color: isDesktop ? '#999' : 'rgba(255,255,255,0.6)',
+                                    marginLeft: '-8px',
+                                    border: isDesktop ? '2px solid #fff' : '2px solid rgba(26, 26, 46, 0.95)',
+                                  }}>
+                                    +{memory.friend_tags.length - 3}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         ))}
-                        {memory.friend_tags.length > 3 && (
-                          <span style={{
-                            width: '28px',
-                            height: '28px',
-                            borderRadius: '50%',
-                            background: isDesktop ? '#f0f0f0' : 'rgba(255,255,255,0.15)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: '11px',
-                            fontWeight: 600,
-                            color: isDesktop ? '#999' : 'rgba(255,255,255,0.6)',
-                            marginLeft: '-8px',
-                            border: isDesktop ? '2px solid #fff' : '2px solid rgba(26, 26, 46, 0.95)',
-                          }}>
-                            +{memory.friend_tags.length - 3}
-                          </span>
-                        )}
                       </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>

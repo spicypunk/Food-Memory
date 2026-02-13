@@ -22,7 +22,8 @@ export async function GET() {
         friend_tags,
         personal_note,
         google_maps_url,
-        neighborhood
+        neighborhood,
+        borough
       FROM food_memories
       ORDER BY created_at DESC
       LIMIT 100

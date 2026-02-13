@@ -1,4 +1,5 @@
-// app/api/backfill-neighborhoods/route.ts
+// app/api/backfill-locations/route.ts
+// This backfills both neighborhood and borough for existing records.
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { neon } from '@neondatabase/serverless';
@@ -14,9 +15,9 @@ function normalizeNeighborhood(name: string): string {
   return NEIGHBORHOOD_OVERRIDES[name] ?? name;
 }
 
-async function reverseGeocodeNeighborhood(latitude: number, longitude: number): Promise<string | null> {
+async function reverseGeocodeNeighborhood(latitude: number, longitude: number): Promise<{ neighborhood: string | null; borough: string | null }> {
   if (!process.env.GOOGLE_PLACES_API_KEY) {
-    return null;
+    return { neighborhood: null, borough: null };
   }
 
   try {
@@ -24,24 +25,31 @@ async function reverseGeocodeNeighborhood(latitude: number, longitude: number): 
     const response = await fetch(url);
 
     if (!response.ok) {
-      return null;
+      return { neighborhood: null, borough: null };
     }
 
     const data = await response.json();
 
     if (!data.results || data.results.length === 0) {
-      return null;
+      return { neighborhood: null, borough: null };
     }
 
+    let neighborhood: string | null = null;
+    let borough: string | null = null;
+
     for (const component of data.results[0].address_components || []) {
-      if ((component.types as string[]).includes('neighborhood')) {
-        return component.long_name;
+      const types = component.types as string[];
+      if (types.includes('neighborhood')) {
+        neighborhood = component.long_name;
+      }
+      if (types.includes('sublocality_level_1') || types.includes('sublocality')) {
+        borough = component.long_name;
       }
     }
 
-    return null;
+    return { neighborhood, borough };
   } catch {
-    return null;
+    return { neighborhood: null, borough: null };
   }
 }
 
@@ -69,11 +77,11 @@ export async function POST() {
       renamed += result.length ?? 0;
     }
 
-    // Then, backfill rows that still have no neighborhood
+    // Then, backfill rows that still have no neighborhood or borough
     const rows = await sql`
       SELECT id, latitude, longitude
       FROM food_memories
-      WHERE neighborhood IS NULL
+      WHERE neighborhood IS NULL OR borough IS NULL
       ORDER BY id
     `;
 
@@ -82,13 +90,15 @@ export async function POST() {
     for (const row of rows) {
       const lat = Number(row.latitude);
       const lon = Number(row.longitude);
-      const raw = await reverseGeocodeNeighborhood(lat, lon);
-      const neighborhood = raw ? normalizeNeighborhood(raw) : null;
+      const result = await reverseGeocodeNeighborhood(lat, lon);
+      const neighborhood = result.neighborhood ? normalizeNeighborhood(result.neighborhood) : null;
+      const borough = result.borough;
 
-      if (neighborhood) {
+      if (neighborhood || borough) {
         await sql`
           UPDATE food_memories
-          SET neighborhood = ${neighborhood}
+          SET neighborhood = COALESCE(${neighborhood}, neighborhood),
+              borough = COALESCE(${borough}, borough)
           WHERE id = ${row.id}
         `;
         updated++;
