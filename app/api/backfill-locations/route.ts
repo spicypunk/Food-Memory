@@ -64,7 +64,9 @@ export async function POST() {
   }
 
   try {
-    const sql = neon(process.env.DATABASE_URL!);
+    const sql = neon(process.env.DATABASE_URL!, {
+      fetchOptions: { cache: 'no-store' },
+    });
 
     // First, fix existing rows that have names we want to override
     let renamed = 0;

@@ -7,7 +7,9 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const sql = neon(process.env.DATABASE_URL!);
+    const sql = neon(process.env.DATABASE_URL!, {
+      fetchOptions: { cache: 'no-store' },
+    });
     const memories = await sql`
       SELECT
         id,
@@ -29,15 +31,9 @@ export async function GET() {
       LIMIT 100
     `;
 
-    // Debug: also get raw count to diagnose production data mismatch
-    const countResult = await sql`SELECT COUNT(*) as total, MAX(id) as max_id FROM food_memories`;
-
     return NextResponse.json(memories, {
       headers: {
         'Cache-Control': 'no-store, no-cache, must-revalidate',
-        'X-DB-Total': String(countResult[0].total),
-        'X-DB-Max-Id': String(countResult[0].max_id),
-        'X-Returned': String(memories.length),
       },
     });
   } catch (error) {

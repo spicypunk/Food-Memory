@@ -322,7 +322,9 @@ export async function POST(request: NextRequest) {
     ]);
 
     // Save to Neon database
-    const sql = neon(process.env.DATABASE_URL!);
+    const sql = neon(process.env.DATABASE_URL!, {
+      fetchOptions: { cache: 'no-store' },
+    });
     const result = await sql`
       INSERT INTO food_memories (
         original_image_url,

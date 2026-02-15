@@ -54,7 +54,9 @@ export async function PATCH(
     const body = await request.json();
     const { friend_tags, personal_note, dish_name, restaurant_name } = body;
 
-    const sql = neon(process.env.DATABASE_URL!);
+    const sql = neon(process.env.DATABASE_URL!, {
+      fetchOptions: { cache: 'no-store' },
+    });
 
     // If restaurant_name is being updated, look up new Google Maps URL
     if (restaurant_name !== undefined) {
