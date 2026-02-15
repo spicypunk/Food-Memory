@@ -29,7 +29,11 @@ export async function GET() {
       LIMIT 100
     `;
 
-    return NextResponse.json(memories);
+    return NextResponse.json(memories, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+      },
+    });
   } catch (error) {
     console.error('Fetch memories error:', error);
     return NextResponse.json(
