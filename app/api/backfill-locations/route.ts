@@ -74,7 +74,7 @@ export async function POST() {
       const result = await sql`
         UPDATE food_memories
         SET neighborhood = ${newName}
-        WHERE neighborhood = ${oldName}
+        WHERE neighborhood = ${oldName} AND user_id = ${userId}
       `;
       renamed += result.length ?? 0;
     }
@@ -83,7 +83,7 @@ export async function POST() {
     const rows = await sql`
       SELECT id, latitude, longitude
       FROM food_memories
-      WHERE neighborhood IS NULL OR borough IS NULL
+      WHERE (neighborhood IS NULL OR borough IS NULL) AND user_id = ${userId}
       ORDER BY id
     `;
 

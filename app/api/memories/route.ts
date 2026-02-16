@@ -1,5 +1,6 @@
 // app/api/memories/route.ts
 import { NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 import { neon } from '@neondatabase/serverless';
 
 // Disable caching for this route
@@ -7,6 +8,13 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json([], {
+        headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' },
+      });
+    }
+
     const sql = neon(process.env.DATABASE_URL!, {
       fetchOptions: { cache: 'no-store' },
     });
@@ -27,6 +35,7 @@ export async function GET() {
         neighborhood,
         borough
       FROM food_memories
+      WHERE user_id = ${userId}
       ORDER BY created_at DESC
       LIMIT 100
     `;

@@ -62,7 +62,7 @@ export async function PATCH(
     if (restaurant_name !== undefined) {
       // Fetch the memory's coordinates for the Places lookup
       const existing = await sql`
-        SELECT latitude, longitude FROM food_memories WHERE id = ${memoryId}
+        SELECT latitude, longitude FROM food_memories WHERE id = ${memoryId} AND user_id = ${userId}
       `;
 
       if (existing.length === 0) {
@@ -88,7 +88,7 @@ export async function PATCH(
           dish_name = ${dish_name ?? null},
           restaurant_name = ${restaurant_name || null},
           google_maps_url = ${googleMapsUrl}
-        WHERE id = ${memoryId}
+        WHERE id = ${memoryId} AND user_id = ${userId}
         RETURNING
           id, original_image_url, cropped_image_url, latitude, longitude,
           created_at, dish_name, restaurant_name, photo_taken_at,
@@ -112,7 +112,7 @@ export async function PATCH(
         friend_tags = ${friend_tags ?? null},
         personal_note = ${personal_note ?? null},
         dish_name = ${dish_name ?? null}
-      WHERE id = ${memoryId}
+      WHERE id = ${memoryId} AND user_id = ${userId}
       RETURNING
         id, original_image_url, cropped_image_url, latitude, longitude,
         created_at, dish_name, restaurant_name, photo_taken_at,

@@ -327,6 +327,7 @@ export async function POST(request: NextRequest) {
     });
     const result = await sql`
       INSERT INTO food_memories (
+        user_id,
         original_image_url,
         cropped_image_url,
         latitude,
@@ -339,6 +340,7 @@ export async function POST(request: NextRequest) {
         borough,
         created_at
       ) VALUES (
+        ${userId},
         ${originalBlob.url},
         ${croppedBlob.url},
         ${latitude},

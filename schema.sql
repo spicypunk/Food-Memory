@@ -1,13 +1,21 @@
--- Run this in your Neon SQL editor to create the table
+-- Run this in your Neon SQL editor to create the tables
+
+-- Users table for display names (multiplayer)
+CREATE TABLE users (
+  user_id VARCHAR(255) PRIMARY KEY,
+  display_name VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
 CREATE TABLE food_memories (
   id SERIAL PRIMARY KEY,
+  user_id VARCHAR(255) NOT NULL,
   original_image_url TEXT NOT NULL,
   cropped_image_url TEXT NOT NULL,
   latitude DECIMAL(10, 8) NOT NULL,
   longitude DECIMAL(11, 8) NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  
+
   -- Optional: add name/notes later
   name VARCHAR(255),
   notes TEXT,
@@ -41,6 +49,12 @@ CREATE TABLE food_memories (
 -- ALTER TABLE food_memories ADD COLUMN neighborhood VARCHAR(255);
 -- ALTER TABLE food_memories ADD COLUMN borough VARCHAR(100);
 
+-- Multiplayer migration:
+-- ALTER TABLE food_memories ADD COLUMN user_id VARCHAR(255);
+-- UPDATE food_memories SET user_id = '<YOUR_CLERK_USER_ID>' WHERE user_id IS NULL;
+-- ALTER TABLE food_memories ALTER COLUMN user_id SET NOT NULL;
+
 -- Index for faster geo queries if you want to add proximity search later
 CREATE INDEX idx_food_memories_location ON food_memories (latitude, longitude);
 CREATE INDEX idx_food_memories_created ON food_memories (created_at DESC);
+CREATE INDEX idx_food_memories_user_id ON food_memories (user_id, created_at DESC);

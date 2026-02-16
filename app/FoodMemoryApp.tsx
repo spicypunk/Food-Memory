@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { UserButton } from '@clerk/nextjs';
+import { UserButton, useUser } from '@clerk/nextjs';
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import exifr from 'exifr';
@@ -515,7 +515,8 @@ function FullscreenViewer({
   );
 }
 
-export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
+export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: boolean; shareUserId?: string }) {
+  const { user } = useUser();
   const [foodMemories, setFoodMemories] = useState<FoodMemory[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string>('');
@@ -536,6 +537,11 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
   const [editedDishName, setEditedDishName] = useState('');
   const [isDesktop, setIsDesktop] = useState(false);
   const [collapsedBoroughs, setCollapsedBoroughs] = useState<Set<string>>(new Set());
+  const [showNameModal, setShowNameModal] = useState(false);
+  const [nameInput, setNameInput] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [shareUserName, setShareUserName] = useState('');
+  const [shareCopied, setShareCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const markerClickedRef = useRef(false);
 
@@ -718,7 +724,26 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
   // Load existing memories on mount
   useEffect(() => {
     fetchMemories();
-  }, []);
+  }, [shareUserId]);
+
+  // Check if user has set a display name (onboarding)
+  useEffect(() => {
+    if (readOnly) return;
+    const checkUser = async () => {
+      try {
+        const res = await fetch('/api/user', { cache: 'no-store' });
+        const data = await res.json();
+        if (data && data.display_name) {
+          setDisplayName(data.display_name);
+        } else {
+          setShowNameModal(true);
+        }
+      } catch (err) {
+        console.error('Failed to check user profile:', err);
+      }
+    };
+    checkUser();
+  }, [readOnly]);
 
   // Close fullscreen on Escape key
   useEffect(() => {
@@ -740,13 +765,25 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
 
   const fetchMemories = async () => {
     try {
-      const res = await fetch('/api/memories', { cache: 'no-store' });
-      const data = await res.json();
-      setFoodMemories(data);
-
-      // Center map on most recent memory
-      if (data.length > 0) {
-        setMapCenter([data[0].latitude, data[0].longitude]);
+      if (shareUserId) {
+        // Public share view — fetch from share API
+        const res = await fetch(`/api/share/${shareUserId}`, { cache: 'no-store' });
+        const data = await res.json();
+        setFoodMemories(data.memories || []);
+        if (data.user?.display_name) {
+          setShareUserName(data.user.display_name);
+        }
+        if (data.memories?.length > 0) {
+          setMapCenter([data.memories[0].latitude, data.memories[0].longitude]);
+        }
+      } else {
+        // Authenticated user — fetch own memories
+        const res = await fetch('/api/memories', { cache: 'no-store' });
+        const data = await res.json();
+        setFoodMemories(data);
+        if (data.length > 0) {
+          setMapCenter([data[0].latitude, data[0].longitude]);
+        }
       }
     } catch (err) {
       console.error('Failed to fetch memories:', err);
@@ -847,7 +884,9 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
               color: '#fff',
               letterSpacing: '-0.02em',
             }}>
-              Tastory
+              {readOnly && shareUserId
+                ? (shareUserName ? `${shareUserName}'s Food Map` : 'Food Map')
+                : 'Tastory'}
             </h1>
             <p style={{
               margin: 0,
@@ -916,7 +955,72 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
           </div>
         )}
 
-        {!readOnly && <UserButton />}
+        {!readOnly && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {/* Share button */}
+            {user && (
+              <button
+                onClick={() => {
+                  const shareUrl = `${window.location.origin}/share/${user.id}`;
+                  const copyToClipboard = (text: string) => {
+                    if (navigator.clipboard?.writeText) {
+                      return navigator.clipboard.writeText(text);
+                    }
+                    // Fallback for non-HTTPS contexts
+                    const ta = document.createElement('textarea');
+                    ta.value = text;
+                    ta.style.position = 'fixed';
+                    ta.style.opacity = '0';
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                    return Promise.resolve();
+                  };
+                  copyToClipboard(shareUrl).then(() => {
+                    setShareCopied(true);
+                    setTimeout(() => setShareCopied(false), 2000);
+                  });
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '50%',
+                  border: 'none',
+                  background: 'rgba(255,255,255,0.1)',
+                  cursor: 'pointer',
+                  position: 'relative',
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+                  <polyline points="16 6 12 2 8 6" />
+                  <line x1="12" y1="2" x2="12" y2="15" />
+                </svg>
+                {shareCopied && (
+                  <span style={{
+                    position: 'absolute',
+                    top: '44px',
+                    right: 0,
+                    background: '#000',
+                    color: '#fff',
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    whiteSpace: 'nowrap',
+                    animation: 'fadeIn 0.2s ease',
+                  }}>
+                    Link copied!
+                  </span>
+                )}
+              </button>
+            )}
+            <UserButton />
+          </div>
+        )}
       </header>
 
       {/* Floating Add Button - hidden when memory detail sheet is open or readOnly */}
@@ -1670,6 +1774,121 @@ export default function FoodMemoryApp({ readOnly }: { readOnly?: boolean }) {
               }}
             >
               Confirm
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Onboarding name modal */}
+      {showNameModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 1003,
+          background: 'rgba(0, 0, 0, 0.85)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          animation: 'fadeIn 0.2s ease',
+        }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: '24px',
+            padding: '32px 24px',
+            width: '90%',
+            maxWidth: '340px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '20px',
+          }}>
+            <span style={{ fontSize: '48px' }}>🍜</span>
+            <div style={{ textAlign: 'center' }}>
+              <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 700, color: '#1a1a1a' }}>
+                Welcome to Tastory
+              </h2>
+              <p style={{ margin: '8px 0 0', fontSize: '14px', color: '#888' }}>
+                What should we call you?
+              </p>
+            </div>
+            <input
+              type="text"
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && nameInput.trim()) {
+                  e.preventDefault();
+                  const saveName = async () => {
+                    try {
+                      const res = await fetch('/api/user', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ display_name: nameInput.trim() }),
+                      });
+                      if (res.ok) {
+                        const data = await res.json();
+                        setDisplayName(data.display_name);
+                        setShowNameModal(false);
+                      }
+                    } catch (err) {
+                      console.error('Failed to save name:', err);
+                    }
+                  };
+                  saveName();
+                }
+              }}
+              placeholder="Your name"
+              autoFocus
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                borderRadius: '12px',
+                border: '1px solid #e0e0e0',
+                background: '#f8f8f8',
+                color: '#1a1a1a',
+                fontSize: '16px',
+                fontFamily: 'inherit',
+                outline: 'none',
+                boxSizing: 'border-box',
+                textAlign: 'center',
+              }}
+            />
+            <button
+              onClick={async () => {
+                if (!nameInput.trim()) return;
+                try {
+                  const res = await fetch('/api/user', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ display_name: nameInput.trim() }),
+                  });
+                  if (res.ok) {
+                    const data = await res.json();
+                    setDisplayName(data.display_name);
+                    setShowNameModal(false);
+                  }
+                } catch (err) {
+                  console.error('Failed to save name:', err);
+                }
+              }}
+              disabled={!nameInput.trim()}
+              style={{
+                width: '100%',
+                padding: '14px',
+                borderRadius: '14px',
+                border: 'none',
+                background: nameInput.trim() ? '#1a1a1a' : '#ccc',
+                color: '#fff',
+                fontSize: '16px',
+                fontWeight: 700,
+                cursor: nameInput.trim() ? 'pointer' : 'default',
+                fontFamily: 'inherit',
+              }}
+            >
+              Continue
             </button>
           </div>
         </div>

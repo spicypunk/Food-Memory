@@ -2,7 +2,7 @@ import dynamicImport from 'next/dynamic';
 
 export const dynamic = 'force-dynamic';
 
-const FoodMemoryApp = dynamicImport(() => import('../FoodMemoryApp'), {
+const FoodMemoryApp = dynamicImport(() => import('../../FoodMemoryApp'), {
   ssr: false,
   loading: () => (
     <div style={{
@@ -23,6 +23,11 @@ const FoodMemoryApp = dynamicImport(() => import('../FoodMemoryApp'), {
   ),
 });
 
-export default function SharePage() {
-  return <FoodMemoryApp readOnly />;
+export default async function ShareUserPage({
+  params,
+}: {
+  params: Promise<{ userId: string }>;
+}) {
+  const { userId } = await params;
+  return <FoodMemoryApp readOnly shareUserId={userId} />;
 }
