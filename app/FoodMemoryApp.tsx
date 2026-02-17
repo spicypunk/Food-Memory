@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { UserButton, useUser } from '@clerk/nextjs';
+import { SignUp, UserButton, useUser } from '@clerk/nextjs';
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import exifr from 'exifr';
@@ -516,7 +516,7 @@ function FullscreenViewer({
 }
 
 export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: boolean; shareUserId?: string }) {
-  const { user } = useUser();
+  const { isLoaded, user } = useUser();
   const [foodMemories, setFoodMemories] = useState<FoodMemory[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string>('');
@@ -544,6 +544,18 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
   const [shareCopied, setShareCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const markerClickedRef = useRef(false);
+  const [onboardingStep, setOnboardingStep] = useState(0);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [isFirstUpload, setIsFirstUpload] = useState(false);
+  const prevShowNameModalRef = useRef(showNameModal);
+  const [pendingFileData, setPendingFileData] = useState<{
+    file: File;
+    latitude: number;
+    longitude: number;
+    photoTakenAt: string | null;
+  } | null>(null);
+  const [showAuthGate, setShowAuthGate] = useState(false);
+  const uploadResumedRef = useRef(false);
 
   // Responsive breakpoint: desktop shows list+map side by side
   useEffect(() => {
@@ -618,6 +630,18 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
 
     return Object.values(groups).sort((a, b) => b.dishCount - a.dishCount);
   }, [sortedDishGroups]);
+
+  const confettiParticles = useMemo(() =>
+    Array.from({ length: 36 }, (_, i) => ({
+      id: i,
+      left: Math.random() * 100,
+      size: 6 + Math.random() * 8,
+      duration: 1.8 + Math.random() * 1.4,
+      delay: Math.random() * 1.2,
+      color: ['#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#ff922b', '#cc5de8', '#20c997'][i % 7],
+      shape: i % 3 === 0 ? 'circle' : i % 3 === 1 ? 'square' : 'strip',
+    })),
+  []);
 
   // Sync local state when selected memory changes
   useEffect(() => {
@@ -718,17 +742,26 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
     setFoodMemories(prev => [finalMemory, ...prev]);
     setMapCenter([finalMemory.latitude, finalMemory.longitude]);
     setSelectedMemory(finalMemory);
+
+    if (isFirstUpload) {
+      setShowCelebration(true);
+      setIsFirstUpload(false);
+      localStorage.setItem('tastory-onboarding-done', 'true');
+      setTimeout(() => setShowCelebration(false), 3000);
+    }
+
     setPendingMemory(null);
   };
 
   // Load existing memories on mount
   useEffect(() => {
+    if (!isLoaded) return;
     fetchMemories();
-  }, [shareUserId]);
+  }, [isLoaded, shareUserId, user?.id]);
 
   // Check if user has set a display name (onboarding)
   useEffect(() => {
-    if (readOnly) return;
+    if (readOnly || !user) return;
     const checkUser = async () => {
       try {
         const res = await fetch('/api/user', { cache: 'no-store' });
@@ -743,7 +776,7 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
       }
     };
     checkUser();
-  }, [readOnly]);
+  }, [readOnly, user?.id]);
 
   // Close fullscreen on Escape key
   useEffect(() => {
@@ -755,6 +788,61 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [fullscreenData]);
+
+  // Guest walkthrough trigger: start onboarding for unauthenticated visitors
+  useEffect(() => {
+    if (!isLoaded || user || readOnly) return;
+    if (!localStorage.getItem('tastory-onboarding-done') && foodMemories.length === 0) {
+      setOnboardingStep(1);
+    }
+  }, [isLoaded, user, readOnly, foodMemories.length]);
+
+  // Onboarding walkthrough trigger: when name modal closes for first-time user
+  useEffect(() => {
+    if (prevShowNameModalRef.current && !showNameModal && !pendingMemory && !uploading) {
+      if (!localStorage.getItem('tastory-onboarding-done') && foodMemories.length === 0) {
+        setOnboardingStep(1);
+      }
+    }
+    prevShowNameModalRef.current = showNameModal;
+  }, [showNameModal, foodMemories.length]);
+
+  // Auth-resume: after guest signs up, upload file then show confirmation modal
+  useEffect(() => {
+    if (!user?.id || !pendingFileData || uploadResumedRef.current) return;
+    uploadResumedRef.current = true;
+    setShowAuthGate(false);
+    const fileData = pendingFileData;
+    setPendingFileData(null);
+
+    (async () => {
+      setUploading(true);
+      setUploadStatus('Processing...');
+      try {
+        const formData = new FormData();
+        formData.append('original', fileData.file);
+        formData.append('latitude', fileData.latitude.toString());
+        formData.append('longitude', fileData.longitude.toString());
+        if (fileData.photoTakenAt) formData.append('photoTakenAt', fileData.photoTakenAt);
+
+        const res = await fetch('/api/upload', { method: 'POST', body: formData });
+        if (!res.ok) throw new Error((await res.json()).error || 'Upload failed');
+        const { nearby_restaurants, ...newMemory } = await res.json();
+
+        // Show confirmation modal with AI-detected dish name + restaurant
+        setPendingMemory(newMemory);
+        setPendingDishName(newMemory.dish_name || '');
+        setPendingRestaurantName(newMemory.restaurant_name || '');
+        setNearbyRestaurants(nearby_restaurants || []);
+        setShowRestaurantPicker(false);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Upload failed');
+      } finally {
+        setUploading(false);
+        setUploadStatus('');
+      }
+    })();
+  }, [user?.id, pendingFileData]);
 
   // Fly to selected memory when switching to map view
   useEffect(() => {
@@ -776,7 +864,7 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
         if (data.memories?.length > 0) {
           setMapCenter([data.memories[0].latitude, data.memories[0].longitude]);
         }
-      } else {
+      } else if (user) {
         // Authenticated user — fetch own memories
         const res = await fetch('/api/memories', { cache: 'no-store' });
         const data = await res.json();
@@ -794,6 +882,12 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (foodMemories.length === 0) setIsFirstUpload(true);
+    if (onboardingStep > 0) {
+      setOnboardingStep(0);
+      localStorage.setItem('tastory-onboarding-done', 'true');
+    }
+
     setUploading(true);
     setError(null);
     setUploadStatus('Reading location...');
@@ -808,37 +902,45 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
         throw new Error('No location data found in this photo. Make sure location services were enabled when you took it.');
       }
 
-      // Step 2: Upload to server (background removal happens server-side)
-      setUploadStatus('Processing...');
-      const formData = new FormData();
-      formData.append('original', file);
-      formData.append('latitude', Number(gps.latitude).toString());
-      formData.append('longitude', Number(gps.longitude).toString());
+      const latitude = Number(gps.latitude);
+      const longitude = Number(gps.longitude);
+      const photoTakenAt = exifData?.DateTimeOriginal
+        ? exifData.DateTimeOriginal.toISOString()
+        : null;
 
-      // Add photo taken date if available
-      if (exifData?.DateTimeOriginal) {
-        formData.append('photoTakenAt', exifData.DateTimeOriginal.toISOString());
+      if (!user) {
+        // Guest path: store file data and show auth gate immediately
+        setPendingFileData({ file, latitude, longitude, photoTakenAt });
+        setShowAuthGate(true);
+      } else {
+        // Authenticated path: upload to server immediately
+        setUploadStatus('Processing...');
+        const formData = new FormData();
+        formData.append('original', file);
+        formData.append('latitude', latitude.toString());
+        formData.append('longitude', longitude.toString());
+        if (photoTakenAt) formData.append('photoTakenAt', photoTakenAt);
+
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.error || 'Upload failed');
+        }
+
+        const responseData = await res.json();
+        const { nearby_restaurants, ...newMemory } = responseData;
+
+        // Show confirmation modal instead of immediately adding to map
+        setPendingMemory(newMemory);
+        setPendingDishName(newMemory.dish_name || '');
+        setPendingRestaurantName(newMemory.restaurant_name || '');
+        setNearbyRestaurants(nearby_restaurants || []);
+        setShowRestaurantPicker(false);
       }
-
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || 'Upload failed');
-      }
-
-      const responseData = await res.json();
-      const { nearby_restaurants, ...newMemory } = responseData;
-
-      // Show confirmation modal instead of immediately adding to map
-      setPendingMemory(newMemory);
-      setPendingDishName(newMemory.dish_name || '');
-      setPendingRestaurantName(newMemory.restaurant_name || '');
-      setNearbyRestaurants(nearby_restaurants || []);
-      setShowRestaurantPicker(false);
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');
@@ -851,7 +953,7 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
     }
   };
 
-  const defaultCenter: [number, number] = [40.7128, -74.006]; // NYC default
+  const defaultCenter: [number, number] = [40.741932089424466, -73.99287778355064]; // Manhattan
 
   return (
     <div style={{
@@ -1018,7 +1120,26 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
                 )}
               </button>
             )}
-            <UserButton />
+            {user ? (
+              <UserButton />
+            ) : isLoaded ? (
+              <button
+                onClick={() => setShowAuthGate(true)}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  background: 'rgba(255,255,255,0.1)',
+                  color: '#fff',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                Sign In
+              </button>
+            ) : null}
           </div>
         )}
       </header>
@@ -1039,7 +1160,10 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
           alignItems: 'center',
           justifyContent: 'center',
           cursor: uploading ? 'wait' : 'pointer',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+          boxShadow: foodMemories.length === 0 && !uploading
+            ? '0 0 0 6px rgba(255,255,255,0.3), 0 0 0 12px rgba(255,255,255,0.15), 0 4px 12px rgba(0,0,0,0.3)'
+            : '0 4px 12px rgba(0,0,0,0.3)',
+          animation: foodMemories.length === 0 && !uploading ? 'fabPulse 2s ease-in-out infinite' : 'none',
           transition: 'all 0.2s ease',
         }}>
           <input
@@ -1106,7 +1230,7 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
       <div style={{
         position: 'fixed',
         top: 0,
-        left: isDesktop ? '380px' : 0,
+        left: isDesktop && foodMemories.length > 0 ? '380px' : 0,
         right: 0,
         bottom: 0,
         paddingTop: '72px',
@@ -1149,8 +1273,8 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
         </MapContainer>
       </div>
 
-      {/* List view */}
-      {(isDesktop || viewMode === 'list') && (
+      {/* List view — hidden when no memories */}
+      {(isDesktop || viewMode === 'list') && foodMemories.length > 0 && (
         <div style={{
           position: 'fixed',
           top: '72px',
@@ -1894,6 +2018,286 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
         </div>
       )}
 
+      {/* Auth gate modal */}
+      {showAuthGate && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 1004,
+          background: 'rgba(0, 0, 0, 0.85)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          animation: 'fadeIn 0.2s ease',
+        }}>
+          <button
+            onClick={() => {
+              setShowAuthGate(false);
+              setPendingFileData(null);
+              uploadResumedRef.current = false;
+            }}
+            style={{
+              position: 'absolute',
+              top: '16px',
+              right: '16px',
+              width: '44px',
+              height: '44px',
+              borderRadius: '50%',
+              background: 'rgba(255,255,255,0.1)',
+              border: 'none',
+              color: '#fff',
+              fontSize: '24px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 10,
+            }}
+          >
+            ×
+          </button>
+          <p style={{
+            color: '#fff',
+            fontSize: '18px',
+            fontWeight: 700,
+            marginBottom: '20px',
+            textAlign: 'center',
+          }}>
+            Sign up to save your food memory
+          </p>
+          <SignUp routing="hash" forceRedirectUrl="/" />
+        </div>
+      )}
+
+      {/* Onboarding walkthrough overlay */}
+      {onboardingStep === 1 && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 10000,
+          pointerEvents: 'none',
+        }}>
+          {/* Spotlight ring on FAB (bottom-right) */}
+          <div style={{
+            position: 'absolute',
+            bottom: 12,
+            right: 12,
+            width: 80,
+            height: 80,
+            borderRadius: '50%',
+            boxShadow: '0 0 0 9999px rgba(0,0,0,0.75)',
+          }} />
+          {/* Tooltip card — positioned above-left of FAB */}
+          <div style={{
+            position: 'absolute',
+            bottom: 108,
+            right: 16,
+            background: '#fff',
+            borderRadius: 16,
+            padding: '20px 24px',
+            width: 280,
+            textAlign: 'center',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+            pointerEvents: 'auto',
+            animation: 'slideUp 0.3s ease-out',
+          }}>
+            {/* Step indicator */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'center',
+              gap: 6,
+              marginBottom: 14,
+            }}>
+              {[1, 2].map(step => (
+                <div key={step} style={{
+                  width: step === 1 ? 20 : 8,
+                  height: 8,
+                  borderRadius: 4,
+                  background: step === 1 ? '#1a1a1a' : '#ddd',
+                  transition: 'all 0.2s ease',
+                }} />
+              ))}
+            </div>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>📸</div>
+            <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 6, color: '#1a1a1a' }}>
+              Add your first memory
+            </div>
+            <div style={{ fontSize: 14, color: '#666', marginBottom: 16, lineHeight: 1.4 }}>
+              Tap the + button to upload a food photo with location data
+            </div>
+            {/* Arrow pointing down-right to FAB */}
+            <div style={{
+              position: 'absolute',
+              bottom: -10,
+              right: 36,
+              width: 0,
+              height: 0,
+              borderLeft: '10px solid transparent',
+              borderRight: '10px solid transparent',
+              borderTop: '10px solid #fff',
+            }} />
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={() => {
+                  setOnboardingStep(0);
+                  localStorage.setItem('tastory-onboarding-done', 'true');
+                }}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  borderRadius: 10,
+                  border: '1px solid #ddd',
+                  background: '#fff',
+                  color: '#666',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                Skip
+              </button>
+              <button
+                onClick={() => setOnboardingStep(2)}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  borderRadius: 10,
+                  border: 'none',
+                  background: '#1a1a1a',
+                  color: '#fff',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {onboardingStep === 2 && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 10000,
+          background: 'rgba(0,0,0,0.75)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: 20,
+            padding: '28px 24px',
+            width: 300,
+            textAlign: 'center',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+            animation: 'slideUp 0.3s ease-out',
+          }}>
+            {/* Step indicator */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'center',
+              gap: 6,
+              marginBottom: 14,
+            }}>
+              {[1, 2].map(step => (
+                <div key={step} style={{
+                  width: step === 2 ? 20 : 8,
+                  height: 8,
+                  borderRadius: 4,
+                  background: step === 2 ? '#1a1a1a' : '#ddd',
+                  transition: 'all 0.2s ease',
+                }} />
+              ))}
+            </div>
+            <div style={{ fontSize: 36, marginBottom: 10 }}>📍</div>
+            <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 6, color: '#1a1a1a' }}>
+              Photos land on the map
+            </div>
+            <div style={{ fontSize: 14, color: '#666', marginBottom: 20, lineHeight: 1.4 }}>
+              Your food photos will be placed on the map using their GPS data. Build a visual journal of everywhere you eat!
+            </div>
+            <button
+              onClick={() => {
+                setOnboardingStep(0);
+                localStorage.setItem('tastory-onboarding-done', 'true');
+              }}
+              style={{
+                width: '100%',
+                padding: '12px',
+                borderRadius: 12,
+                border: 'none',
+                background: '#1a1a1a',
+                color: '#fff',
+                fontSize: 15,
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              {"Let's go!"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* First-upload celebration confetti */}
+      {showCelebration && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 10001,
+          pointerEvents: 'none',
+          overflow: 'hidden',
+        }}>
+          {confettiParticles.map(p => (
+            <div
+              key={p.id}
+              style={{
+                position: 'absolute',
+                top: -20,
+                left: `${p.left}%`,
+                width: p.shape === 'strip' ? p.size * 0.4 : p.size,
+                height: p.shape === 'strip' ? p.size * 1.6 : p.size,
+                borderRadius: p.shape === 'circle' ? '50%' : p.shape === 'strip' ? 2 : 0,
+                background: p.color,
+                animation: `confettiFall ${p.duration}s ${p.delay}s ease-in forwards`,
+                opacity: 0,
+              }}
+            />
+          ))}
+          <div style={{
+            position: 'absolute',
+            top: '40%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            textAlign: 'center',
+            animation: 'celebrationPop 0.5s 0.2s ease-out forwards',
+            opacity: 0,
+          }}>
+            <div style={{ fontSize: 48, marginBottom: 8 }}>🎉</div>
+            <div style={{
+              fontSize: 22,
+              fontWeight: 800,
+              color: '#fff',
+              textShadow: '0 2px 12px rgba(0,0,0,0.5)',
+              whiteSpace: 'nowrap',
+            }}>
+              First memory added!
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Fullscreen image viewer with swipe */}
       {fullscreenData && (
         <FullscreenViewer
@@ -1908,6 +2312,10 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
         @keyframes spin {
           to { transform: rotate(360deg); }
         }
+        @keyframes fabPulse {
+          0%, 100% { box-shadow: 0 0 0 6px rgba(255,255,255,0.3), 0 0 0 12px rgba(255,255,255,0.15), 0 4px 12px rgba(0,0,0,0.3); }
+          50% { box-shadow: 0 0 0 10px rgba(255,255,255,0.4), 0 0 0 20px rgba(255,255,255,0.1), 0 4px 12px rgba(0,0,0,0.3); }
+        }
         @keyframes slideDown {
           from { opacity: 0; transform: translateX(-50%) translateY(-10px); }
           to { opacity: 1; transform: translateX(-50%) translateY(0); }
@@ -1919,6 +2327,15 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
         @keyframes fadeIn {
           from { opacity: 0; }
           to { opacity: 1; }
+        }
+        @keyframes confettiFall {
+          0% { transform: translateY(-20vh) rotate(0deg); opacity: 1; }
+          100% { transform: translateY(110vh) rotate(720deg); opacity: 0.6; }
+        }
+        @keyframes celebrationPop {
+          0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+          70% { transform: translate(-50%, -50%) scale(1.15); opacity: 1; }
+          100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
         }
         .leaflet-popup-content-wrapper {
           border-radius: 140px !important;
