@@ -1191,6 +1191,48 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
         </label>
       )}
 
+      {/* Share page CTA banner */}
+      {readOnly && shareUserId && !selectedMemory && (
+        <div style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          zIndex: 999,
+          background: '#000',
+          padding: '10px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          animation: 'slideUp 0.3s ease',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '24px' }}>🍜</span>
+            <div>
+              <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>Tastory</div>
+              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>Map your food memories</div>
+            </div>
+          </div>
+          <button
+            onClick={() => { window.location.href = '/'; }}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '20px',
+              border: 'none',
+              background: '#fff',
+              color: '#000',
+              fontSize: '13px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Start mapping your tastes
+          </button>
+        </div>
+      )}
+
       {/* Error toast */}
       {error && (
         <div style={{
@@ -1234,6 +1276,7 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
         right: 0,
         bottom: 0,
         paddingTop: '72px',
+        paddingBottom: readOnly && shareUserId ? '52px' : 0,
         display: isDesktop ? 'block' : (viewMode === 'map' ? 'block' : 'none'),
       }}>
         <MapContainer
@@ -1284,7 +1327,7 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
           bottom: 0,
           overflowY: 'auto',
           padding: 0,
-          paddingBottom: selectedMemory ? '180px' : '24px',
+          paddingBottom: selectedMemory ? '180px' : (readOnly && shareUserId ? '76px' : '24px'),
           WebkitOverflowScrolling: 'touch' as any,
           borderRight: isDesktop ? '1px solid #e0e0e0' : undefined,
           zIndex: isDesktop ? 500 : undefined,
