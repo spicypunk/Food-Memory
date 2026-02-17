@@ -9,7 +9,7 @@ export default function SignInPage() {
       alignItems: 'center',
       justifyContent: 'center',
     }}>
-      <SignIn />
+      <SignIn forceRedirectUrl="/" />
     </div>
   );
 }

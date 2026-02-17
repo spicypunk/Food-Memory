@@ -23,7 +23,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <ClerkProvider>
+    <ClerkProvider afterSignUpUrl="/" afterSignInUrl="/" signUpForceRedirectUrl="/" signInForceRedirectUrl="/">
+
       <html lang="en">
         <body className={dmSans.className}>
           {children}
