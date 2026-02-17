@@ -977,7 +977,7 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
         justifyContent: 'space-between',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span style={{ fontSize: '32px' }}>🍜</span>
+          <a href="/" style={{ fontSize: '32px', textDecoration: 'none', cursor: 'pointer' }}>🍜</a>
           <div>
             <h1 style={{
               margin: 0,
