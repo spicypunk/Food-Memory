@@ -1200,41 +1200,20 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
             bottom: '24px',
             right: '24px',
             zIndex: 999,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            padding: '0 18px 0 0',
+            padding: '12px 22px',
             borderRadius: '28px',
             border: 'none',
             background: '#000',
+            color: '#fff',
+            fontSize: '14px',
+            fontWeight: 600,
             cursor: 'pointer',
             fontFamily: 'inherit',
             boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
             animation: 'slideUp 0.3s ease',
           }}
         >
-          <div style={{
-            width: '44px',
-            height: '44px',
-            borderRadius: '50%',
-            background: '#000',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-          }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-          </div>
-          <span style={{
-            color: '#fff',
-            fontSize: '14px',
-            fontWeight: 600,
-            whiteSpace: 'nowrap',
-          }}>
-            Start mapping your tastes
-          </span>
+          Start mapping
         </button>
       )}
 
