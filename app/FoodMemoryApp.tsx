@@ -1288,7 +1288,7 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
           WebkitOverflowScrolling: 'touch' as any,
           borderRight: isDesktop ? '1px solid #e0e0e0' : undefined,
           zIndex: isDesktop ? 500 : undefined,
-          background: isDesktop ? '#f2f2f2' : undefined,
+          background: '#f2f2f2',
         }}>
           {boroughGroups.map(({ borough, dishGroups: bGroups, dishCount }) => (
             <div key={borough}>
@@ -1310,16 +1310,15 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   padding: '14px 16px',
-                  background: isDesktop ? '#f2f2f2' : 'rgba(26, 26, 46, 0.95)',
-                  backdropFilter: isDesktop ? undefined : 'blur(10px)',
-                  borderBottom: isDesktop ? '1px solid #e0e0e0' : '1px solid rgba(255,255,255,0.08)',
-                  borderTop: isDesktop ? '1px solid #e0e0e0' : '1px solid rgba(255,255,255,0.08)',
+                  background: '#f2f2f2',
+                  borderBottom: '1px solid #e0e0e0',
+                  borderTop: '1px solid #e0e0e0',
                   cursor: 'pointer',
                   userSelect: 'none',
                 }}
               >
                 <span style={{
-                  color: isDesktop ? '#999' : 'rgba(255,255,255,0.4)',
+                  color: '#999',
                   fontSize: '13px',
                   fontWeight: 700,
                   letterSpacing: '0.1em',
@@ -1329,14 +1328,14 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
                 </span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{
-                    color: isDesktop ? '#bbb' : 'rgba(255,255,255,0.3)',
+                    color: '#bbb',
                     fontSize: '14px',
                   }}>
                     {dishCount} {dishCount === 1 ? 'dish' : 'dishes'}
                   </span>
                   <svg
                     width="16" height="16" viewBox="0 0 24 24" fill="none"
-                    stroke={isDesktop ? '#bbb' : 'rgba(255,255,255,0.3)'}
+                    stroke="#bbb"
                     strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
                     style={{
                       transform: collapsedBoroughs.has(borough) ? 'rotate(0deg)' : 'rotate(90deg)',
@@ -1363,7 +1362,7 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
                       }}>
                         <span style={{ fontSize: '14px' }}>📍</span>
                         <span style={{
-                          color: isDesktop ? '#000' : '#fff',
+                          color: '#000',
                           fontSize: '15px',
                           fontWeight: 600,
                         }}>
@@ -1371,7 +1370,7 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
                         </span>
                         <span style={{ flex: 1 }} />
                         <span style={{
-                          color: isDesktop ? '#999' : 'rgba(255,255,255,0.4)',
+                          color: '#999',
                           fontSize: '13px',
                         }}>
                           {group.memories[0]?.neighborhood || ''}
@@ -1398,13 +1397,9 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
                               alignItems: 'center',
                               gap: '12px',
                               padding: '12px',
-                              background: isDesktop
-                                ? (selectedMemory?.id === memory.id ? '#e8e8e8' : '#fff')
-                                : (selectedMemory?.id === memory.id ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)'),
-                              borderRadius: isDesktop ? '12px' : '16px',
-                              border: isDesktop
-                                ? (selectedMemory?.id === memory.id ? '1px solid #ccc' : '1px solid transparent')
-                                : (selectedMemory?.id === memory.id ? '1px solid rgba(255,255,255,0.2)' : '1px solid transparent'),
+                              background: selectedMemory?.id === memory.id ? '#e8e8e8' : '#fff',
+                              borderRadius: '12px',
+                              border: selectedMemory?.id === memory.id ? '1px solid #ccc' : '1px solid transparent',
                               cursor: 'pointer',
                               transition: 'all 0.15s ease',
                             }}
@@ -1430,9 +1425,9 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
                             {/* Info */}
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{
-                                color: isDesktop ? '#000' : '#fff',
-                                fontSize: isDesktop ? '14px' : '15px',
-                                fontWeight: isDesktop ? 500 : 600,
+                                color: '#000',
+                                fontSize: '14px',
+                                fontWeight: 500,
                                 whiteSpace: 'nowrap',
                                 overflow: 'hidden',
                                 textOverflow: 'ellipsis',
@@ -1440,8 +1435,8 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
                                 {memory.dish_name || 'Untitled dish'}
                               </div>
                               <div style={{
-                                color: isDesktop ? '#999' : 'rgba(255,255,255,0.4)',
-                                fontSize: isDesktop ? '12px' : '13px',
+                                color: '#999',
+                                fontSize: '12px',
                                 marginTop: '2px',
                               }}>
                                 {new Date(memory.photo_taken_at || memory.created_at).toLocaleDateString('en-US', {
@@ -1462,15 +1457,15 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
                                       width: '28px',
                                       height: '28px',
                                       borderRadius: '50%',
-                                      background: isDesktop ? '#e0e0e0' : '#DCD0FF',
+                                      background: '#e0e0e0',
                                       display: 'flex',
                                       alignItems: 'center',
                                       justifyContent: 'center',
                                       fontSize: '12px',
                                       fontWeight: 600,
-                                      color: isDesktop ? '#555' : '#5A4A7A',
+                                      color: '#555',
                                       marginLeft: i > 0 ? '-8px' : '0',
-                                      border: isDesktop ? '2px solid #fff' : '2px solid rgba(26, 26, 46, 0.95)',
+                                      border: '2px solid #fff',
                                       zIndex: 3 - i,
                                       position: 'relative',
                                     }}
@@ -1483,15 +1478,15 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
                                     width: '28px',
                                     height: '28px',
                                     borderRadius: '50%',
-                                    background: isDesktop ? '#f0f0f0' : 'rgba(255,255,255,0.15)',
+                                    background: '#f0f0f0',
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
                                     fontSize: '11px',
                                     fontWeight: 600,
-                                    color: isDesktop ? '#999' : 'rgba(255,255,255,0.6)',
+                                    color: '#999',
                                     marginLeft: '-8px',
-                                    border: isDesktop ? '2px solid #fff' : '2px solid rgba(26, 26, 46, 0.95)',
+                                    border: '2px solid #fff',
                                   }}>
                                     +{memory.friend_tags.length - 3}
                                   </span>
@@ -1537,10 +1532,10 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
             left: isDesktop ? '380px' : 0,
             right: 0,
             zIndex: 998,
-            background: isDesktop ? 'rgba(255, 255, 255, 0.95)' : 'rgba(26, 26, 46, 0.95)',
+            background: 'rgba(255, 255, 255, 0.95)',
             backdropFilter: 'blur(20px)',
             borderRadius: isDesktop ? '0' : '24px 24px 0 0',
-            borderTop: isDesktop ? '1px solid #e0e0e0' : undefined,
+            borderTop: '1px solid #e0e0e0',
             padding: '16px 20px',
             animation: 'slideUp 0.3s ease',
           }}
@@ -1550,7 +1545,7 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
             <div style={{
               width: '36px',
               height: '4px',
-              background: 'rgba(255,255,255,0.3)',
+              background: '#ccc',
               borderRadius: '2px',
               margin: '0 auto 10px',
             }} />
@@ -1559,7 +1554,7 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
           {/* Neighborhood + Date — always visible */}
           <p style={{
             margin: 0,
-            color: isDesktop ? '#999' : 'rgba(255,255,255,0.5)',
+            color: '#999',
             fontSize: '13px',
           }}>
             {new Date(selectedMemory.photo_taken_at || selectedMemory.created_at).toLocaleDateString('en-US', {
@@ -1587,9 +1582,9 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
                     alignItems: 'center',
                     gap: '8px',
                     padding: '4px 16px 4px 4px',
-                    background: isDesktop ? '#f0f0f0' : '#DCD0FF',
+                    background: '#f0f0f0',
                     borderRadius: '24px',
-                    color: isDesktop ? '#333' : '#1a1a1a',
+                    color: '#333',
                     fontSize: '14px',
                     fontWeight: 500,
                   }}
@@ -1598,13 +1593,13 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
                     width: '32px',
                     height: '32px',
                     borderRadius: '50%',
-                    background: isDesktop ? '#ddd' : '#D4C8E8',
+                    background: '#ddd',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontSize: '14px',
                     fontWeight: 600,
-                    color: isDesktop ? '#555' : '#5A4A7A',
+                    color: '#555',
                   }}>
                     {tag.charAt(0).toUpperCase()}
                   </span>
@@ -1615,7 +1610,7 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
                       style={{
                         background: 'none',
                         border: 'none',
-                        color: isDesktop ? '#999' : '#9A8AAA',
+                        color: '#999',
                         cursor: 'pointer',
                         padding: 0,
                         marginLeft: '4px',
@@ -1636,19 +1631,19 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
                   alignItems: 'center',
                   gap: '6px',
                   padding: '4px 12px 4px 4px',
-                  border: isDesktop ? '1px dashed #ccc' : '1px dashed rgba(255,255,255,0.3)',
+                  border: '1px dashed #ccc',
                   borderRadius: '20px',
                 }}>
                   <span style={{
                     width: '28px',
                     height: '28px',
                     borderRadius: '50%',
-                    background: isDesktop ? '#f0f0f0' : 'rgba(255,255,255,0.1)',
+                    background: '#f0f0f0',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontSize: '16px',
-                    color: isDesktop ? '#999' : 'rgba(255,255,255,0.5)',
+                    color: '#999',
                   }}>+</span>
                   <input
                     type="text"
@@ -1664,7 +1659,7 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
                     style={{
                       background: 'transparent',
                       border: 'none',
-                      color: isDesktop ? '#333' : '#fff',
+                      color: '#333',
                       fontSize: '14px',
                       outline: 'none',
                       width: '70px',
@@ -1687,7 +1682,7 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
               {readOnly ? (
                 <span style={{
                   flex: 1,
-                  color: isDesktop ? '#333' : '#fff',
+                  color: '#333',
                   fontSize: '14px',
                 }}>
                   {editedNote}
@@ -1702,7 +1697,7 @@ export default function FoodMemoryApp({ readOnly, shareUserId }: { readOnly?: bo
                     flex: 1,
                     background: 'transparent',
                     border: 'none',
-                    color: isDesktop ? (editedNote ? '#333' : '#999') : (editedNote ? '#fff' : 'rgba(255,255,255,0.4)'),
+                    color: editedNote ? '#333' : '#999',
                     fontSize: '14px',
                     outline: 'none',
                     resize: 'none',
